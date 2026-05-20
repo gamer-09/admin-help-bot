@@ -13,6 +13,7 @@ import {
 } from "discord.js";
 import { commands } from "./commands";
 import { welcomeEmbed } from "./embeds";
+import { handleAutoMod } from "./automod";
 import {
   handleWarn, handleTimeout, handleUntimeout, handleKick,
   handleBan, handleUnban, handleClearWarnings, handleInfractions,
@@ -33,6 +34,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.MessageContent, // Privileged — must be enabled in Dev Portal
   ],
   partials: [Partials.GuildMember],
 });
@@ -52,6 +54,13 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Logged in as ${readyClient.user.tag}`);
   readyClient.user.setActivity("the server", { type: ActivityType.Watching });
   await registerCommands(readyClient.user.id);
+});
+
+// Auto-mod: watch every message for rule violations
+client.on(Events.MessageCreate, async (message) => {
+  await handleAutoMod(message).catch((err) =>
+    console.error("Auto-mod error:", err)
+  );
 });
 
 client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
