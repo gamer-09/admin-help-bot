@@ -231,11 +231,12 @@ export async function handleAutoMod(message: Message): Promise<void> {
 
   if (!violation) return;
 
+  try { await message.delete(); } catch { /* already deleted */ }
+
   if (isImmune(member, cfg.immuneRoles)) {
     await sendImmuneNudge(message, violation.type, violation.reason);
     return;
   }
 
-  try { await message.delete(); } catch { /* already deleted */ }
   await autoWarn(message, member, violation.reason, violation.type, cfg.logChannel);
 }
