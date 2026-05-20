@@ -210,4 +210,12 @@ export const commands = [
         )
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("setwelcome")
+    .setDescription("Set the channel where welcome messages are posted when new members join")
+    .addChannelOption((o) =>
+      o.setName("channel").setDescription("The welcome channel").setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map((c) => c.toJSON());
