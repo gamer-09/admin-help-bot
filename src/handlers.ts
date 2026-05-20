@@ -7,7 +7,7 @@ import {
   ChannelType,
   MessageFlags,
 } from "discord.js";
-import { addInfraction, getUserRecord, clearWarnings, getUser } from "./database";
+import { addInfraction, getUserRecord, clearWarnings, getUser, getEffectiveConfig, saveConfigOverride } from "./database";
 import {
   warningEmbed, timeoutEmbed, kickEmbed, infractionListEmbed,
   errorEmbed, successEmbed, serverStatsEmbed,
@@ -503,10 +503,133 @@ export async function handleHelp(interaction: ChatInputCommandInteraction): Prom
           {
             name: "🎉 Welcome System (always active)",
             value: "A welcome embed is posted in #welcome whenever a new member joins.",
+          },
+          {
+            name: "⚙️ Configuration (Admin only)",
+            value:
+              "`/config view` — Show all current automod settings\n" +
+              "`/config toggle <feature> <on|off>` — Enable or disable a feature\n" +
+              "`/config badwords <add|remove> <word>` — Edit the bad word list\n" +
+              "`/config spam [threshold] [window]` — Adjust spam detection\n" +
+              "`/config caps <threshold>` — Set caps-spam % threshold\n" +
+              "`/config logchannel <channel>` — Set the mod-log channel",
           }
         )
         .setFooter({ text: "Mod commands require Moderate Members or higher • Admin commands require Administrator" })
         .setTimestamp(),
     ],
   });
+}
+
+export async function handleConfig(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const sub = interaction.options.getSubcommand(true);
+  const cfg = getEffectiveConfig();
+
+  if (sub === "view") {
+    const onOff = (v: boolean) => (v ? "✅ On" : "❌ Off");
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("⚙️ Automod Configuration")
+          .addFields(
+            { name: "🚫 Spam Detection", value: `${onOff(cfg.spam.enabled)} — max **${cfg.spam.maxMessages}** msgs in **${cfg.spam.windowMs / 1000}s**`, inline: false },
+            { name: "🤬 Bad Words", value: `${onOff(cfg.badWords.enabled)} — **${cfg.badWords.words.length}** words filtered`, inline: false },
+            { name: "🔗 Invite Links", value: onOff(cfg.inviteLinks.enabled), inline: true },
+            { name: "📣 Mass Mentions", value: `${onOff(cfg.massMention.enabled)} — max **${cfg.massMention.maxMentions}** pings`, inline: false },
+            { name: "🔠 Caps Spam", value: `${onOff(cfg.capsSpam.enabled)} — **${cfg.capsSpam.maxCapsPercent}%** threshold`, inline: false },
+            { name: "🌐 External Links", value: onOff(cfg.externalLinks.enabled), inline: true },
+            { name: "📋 Log Channel", value: `\`${cfg.logChannel}\``, inline: false },
+            { name: "📝 Bad Word List", value: cfg.badWords.words.map((w) => `\`${w}\``).join(", ") || "*(empty)*", inline: false },
+          )
+          .setFooter({ text: "Use /config toggle, /config badwords, etc. to make changes" })
+          .setTimestamp(),
+      ],
+    });
+    return;
+  }
+
+  if (sub === "toggle") {
+    const feature = interaction.options.getString("feature", true) as
+      "spam" | "badWords" | "inviteLinks" | "massMention" | "capsSpam" | "externalLinks";
+    const enabled = interaction.options.getBoolean("enabled", true);
+    saveConfigOverride({ [feature]: { enabled } });
+    const label: Record<string, string> = {
+      spam: "Spam Detection",
+      badWords: "Bad Words",
+      inviteLinks: "Invite Links",
+      massMention: "Mass Mentions",
+      capsSpam: "Caps Spam",
+      externalLinks: "External Links",
+    };
+    await interaction.editReply({
+      embeds: [successEmbed(`**${label[feature]}** is now **${enabled ? "enabled ✅" : "disabled ❌"}**.`)],
+    });
+    return;
+  }
+
+  if (sub === "badwords") {
+    const action = interaction.options.getString("action", true) as "add" | "remove";
+    const word = interaction.options.getString("word", true).toLowerCase().trim();
+    const currentWords = [...cfg.badWords.words];
+
+    if (action === "add") {
+      if (currentWords.includes(word)) {
+        await interaction.editReply({ embeds: [errorEmbed(`\`${word}\` is already in the bad word list.`)] });
+        return;
+      }
+      currentWords.push(word);
+      saveConfigOverride({ badWords: { words: currentWords } });
+      await interaction.editReply({ embeds: [successEmbed(`Added \`${word}\` to the bad word list. (${currentWords.length} words total)`)] });
+    } else {
+      const idx = currentWords.indexOf(word);
+      if (idx === -1) {
+        await interaction.editReply({ embeds: [errorEmbed(`\`${word}\` was not found in the bad word list.`)] });
+        return;
+      }
+      currentWords.splice(idx, 1);
+      saveConfigOverride({ badWords: { words: currentWords } });
+      await interaction.editReply({ embeds: [successEmbed(`Removed \`${word}\` from the bad word list. (${currentWords.length} words remaining)`)] });
+    }
+    return;
+  }
+
+  if (sub === "spam") {
+    const threshold = interaction.options.getInteger("threshold");
+    const window = interaction.options.getInteger("window");
+    if (threshold === null && window === null) {
+      await interaction.editReply({ embeds: [errorEmbed("Provide at least one of `threshold` or `window`.")] });
+      return;
+    }
+    const patch: Record<string, number> = {};
+    if (threshold !== null) patch["maxMessages"] = threshold;
+    if (window !== null) patch["windowMs"] = window * 1000;
+    saveConfigOverride({ spam: patch });
+    const updated = getEffectiveConfig().spam;
+    await interaction.editReply({
+      embeds: [successEmbed(`Spam detection updated: max **${updated.maxMessages}** messages in **${updated.windowMs / 1000}s**`)],
+    });
+    return;
+  }
+
+  if (sub === "caps") {
+    const threshold = interaction.options.getInteger("threshold", true);
+    saveConfigOverride({ capsSpam: { maxCapsPercent: threshold } });
+    await interaction.editReply({
+      embeds: [successEmbed(`Caps-spam threshold set to **${threshold}%**`)],
+    });
+    return;
+  }
+
+  if (sub === "logchannel") {
+    const channel = interaction.options.getChannel("channel", true);
+    saveConfigOverride({ logChannel: channel.id });
+    await interaction.editReply({
+      embeds: [successEmbed(`Mod-log channel set to <#${channel.id}>.`)],
+    });
+    return;
+  }
+
+  await interaction.editReply({ embeds: [errorEmbed("Unknown subcommand.")] });
 }
