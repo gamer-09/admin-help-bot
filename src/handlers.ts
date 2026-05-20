@@ -8,7 +8,7 @@ import {
   MessageFlags,
   ThreadAutoArchiveDuration,
 } from "discord.js";
-import { addInfraction, getUserRecord, clearWarnings, getUser, getEffectiveConfig, saveConfigOverride } from "./database";
+import { addInfraction, getUserRecord, clearWarnings, getUser, getEffectiveConfig, saveConfigOverride, saveWelcomeChannel, getWelcomeChannel } from "./database";
 import {
   warningEmbed, timeoutEmbed, kickEmbed, infractionListEmbed,
   errorEmbed, successEmbed, serverStatsEmbed,
@@ -510,7 +510,8 @@ export async function handleHelp(interaction: ChatInputCommandInteraction): Prom
             value:
               "`/setuprules [channel]` — Post the full server rules embed into #rules\n" +
               "› Auto-finds your #rules channel by name\n" +
-              "› Posts 5 formatted embeds covering all 10 server rules",
+              "› Posts 5 formatted embeds covering all 10 server rules\n" +
+              "`/setwelcome <channel>` — Set the channel where welcome messages are posted",
           },
           {
             name: "ℹ️ Info",
@@ -793,5 +794,30 @@ export async function handleAppeal(interaction: ChatInputCommandInteraction): Pr
 
   await interaction.editReply({
     embeds: [successEmbed("Your appeal has been submitted to the moderation team. Please be patient while staff review your case.")],
+  });
+}
+
+export async function handleSetWelcome(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const channel = interaction.options.getChannel("channel", true) as import("discord.js").TextChannel;
+
+  saveWelcomeChannel(channel.id);
+
+  const current = getWelcomeChannel();
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x57f287)
+        .setTitle("✅ Welcome Channel Updated")
+        .setDescription(
+          `Welcome messages will now be posted in <#${channel.id}>.
+
+` +
+          `Whenever a new member joins the server, the bot will send a welcome embed there automatically.`
+        )
+        .addFields({ name: "Channel", value: `<#${current}>`, inline: true })
+        .setFooter({ text: "Use /setwelcome again to change it at any time" })
+        .setTimestamp(),
+    ],
   });
 }
