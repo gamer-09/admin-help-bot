@@ -121,8 +121,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// HTTP server required for Render Web Service health checks
-const PORT = process.env["PORT"] ?? "3000";
+// HTTP server — must start first so Render detects the open port immediately
+const PORT = parseInt(process.env["PORT"] ?? "10000", 10);
+
 const server = http.createServer((req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -133,11 +134,13 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(Number(PORT), () => {
-  console.log(`✅ Health server listening on port ${PORT}`);
-});
+// Bind to 0.0.0.0 so Render's port scanner can detect it
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Health server listening on 0.0.0.0:${PORT}`);
 
-client.login(TOKEN).catch((err) => {
-  console.error("Failed to login:", err);
-  process.exit(1);
+  // Start the Discord bot only after the HTTP server is bound
+  client.login(TOKEN).catch((err) => {
+    console.error("Failed to login to Discord:", err);
+    process.exit(1);
+  });
 });
