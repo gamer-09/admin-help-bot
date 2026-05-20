@@ -5,37 +5,31 @@ import {
   EmbedBuilder,
   PermissionFlagsBits,
 } from "discord.js";
-import { AUTOMOD_CONFIG } from "./config";
-import { addInfraction, getUserRecord } from "./database";
+import { addInfraction, getUserRecord, getEffectiveConfig } from "./database";
 
 // ─── Spam Tracker ─────────────────────────────────────────────────────────────
-// userId → array of message timestamps
 const spamTracker = new Map<string, number[]>();
 
-function trackSpam(userId: string): boolean {
+function trackSpam(userId: string, windowMs: number, maxMessages: number): boolean {
   const now = Date.now();
-  const timestamps = (spamTracker.get(userId) ?? []).filter(
-    (t) => now - t < AUTOMOD_CONFIG.spam.windowMs
-  );
+  const timestamps = (spamTracker.get(userId) ?? []).filter((t) => now - t < windowMs);
   timestamps.push(now);
   spamTracker.set(userId, timestamps);
-  return timestamps.length > AUTOMOD_CONFIG.spam.maxMessages;
+  return timestamps.length > maxMessages;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function isImmune(member: GuildMember): boolean {
+function isImmune(member: GuildMember, immuneRoles: string[]): boolean {
   if (member.permissions.has(PermissionFlagsBits.ManageMessages)) return true;
   return member.roles.cache.some((r) =>
-    AUTOMOD_CONFIG.immuneRoles.includes(r.name) ||
-    AUTOMOD_CONFIG.immuneRoles.includes(r.id)
+    immuneRoles.includes(r.name) || immuneRoles.includes(r.id)
   );
 }
 
-function containsBadWord(content: string): string | null {
+function containsBadWord(content: string, words: string[]): string | null {
   const lower = content.toLowerCase();
-  for (const word of AUTOMOD_CONFIG.badWords.words) {
-    // word boundary check: surrounded by non-alphanumeric chars or start/end
+  for (const word of words) {
     const pattern = new RegExp(`(?<![a-z0-9])${word}(?![a-z0-9])`, "i");
     if (pattern.test(lower)) return word;
   }
@@ -60,9 +54,9 @@ function capsPercent(content: string): number {
   return (upper / letters.length) * 100;
 }
 
-async function getLogChannel(message: Message): Promise<TextChannel | null> {
+async function getLogChannel(message: Message, logChannelName: string): Promise<TextChannel | null> {
   const ch = message.guild?.channels.cache.find(
-    (c) => c.name === AUTOMOD_CONFIG.logChannel || c.id === AUTOMOD_CONFIG.logChannel
+    (c) => c.name === logChannelName || c.id === logChannelName
   );
   return (ch as TextChannel) ?? null;
 }
@@ -73,7 +67,8 @@ async function autoWarn(
   message: Message,
   member: GuildMember,
   reason: string,
-  violationType: string
+  violationType: string,
+  logChannelName: string
 ): Promise<void> {
   const existing = getUserRecord(member.id);
   const currentWarnings = existing?.warnings ?? 0;
@@ -92,7 +87,6 @@ async function autoWarn(
     moderatorName: message.client.user!.tag,
   });
 
-  // DM the user
   const dmMessages: Record<string, string> = {
     warning:
       `⚠️ **Warning #${newWarningCount}** in **${message.guild!.name}**\n\n` +
@@ -134,15 +128,13 @@ async function autoWarn(
     });
   } catch { /* DMs closed */ }
 
-  // Execute escalating action
   if (infractionType === "timeout") {
     try { await member.timeout(10 * 60 * 1000, `Auto-Mod: ${reason}`); } catch { /* insufficient perms */ }
   } else if (infractionType === "ban") {
     try { await member.ban({ reason: `Auto-Mod (4th offense): ${reason}` }); } catch { /* insufficient perms */ }
   }
 
-  // Log to mod-logs
-  const logChannel = await getLogChannel(message);
+  const logChannel = await getLogChannel(message, logChannelName);
   if (logChannel) {
     const actionLabel: Record<string, string> = {
       warning: "⚠️ Warning",
@@ -174,101 +166,71 @@ async function autoWarn(
 // ─── Main Auto-Mod Handler ────────────────────────────────────────────────────
 
 export async function handleAutoMod(message: Message): Promise<void> {
-  // Ignore bots, DMs, and system messages
   if (message.author.bot || !message.guild || !message.member) return;
 
   const member = message.member;
+  const cfg = getEffectiveConfig();
 
-  // Immune users (mods/admins/staff) bypass all checks
-  if (isImmune(member)) return;
+  if (isImmune(member, cfg.immuneRoles)) return;
 
   const content = message.content;
   const channelName = (message.channel as TextChannel).name ?? "";
 
-  // ── 1. Spam Detection ──────────────────────────────────────────────────────
-  if (AUTOMOD_CONFIG.spam.enabled && trackSpam(message.author.id)) {
+  if (cfg.spam.enabled && trackSpam(message.author.id, cfg.spam.windowMs, cfg.spam.maxMessages)) {
     try { await message.delete(); } catch { /* already deleted */ }
     await autoWarn(
       message, member,
-      `Sending more than ${AUTOMOD_CONFIG.spam.maxMessages} messages in ${AUTOMOD_CONFIG.spam.windowMs / 1000}s`,
-      "Spam"
+      `Sending more than ${cfg.spam.maxMessages} messages in ${cfg.spam.windowMs / 1000}s`,
+      "Spam",
+      cfg.logChannel
     );
     return;
   }
 
-  // ── 2. Bad Word Filter ─────────────────────────────────────────────────────
-  if (AUTOMOD_CONFIG.badWords.enabled) {
-    const found = containsBadWord(content);
+  if (cfg.badWords.enabled) {
+    const found = containsBadWord(content, cfg.badWords.words);
     if (found) {
       try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(
-        message, member,
-        `Use of prohibited language: "${found}"`,
-        "Prohibited Language"
-      );
+      await autoWarn(message, member, `Use of prohibited language: "${found}"`, "Prohibited Language", cfg.logChannel);
       return;
     }
   }
 
-  // ── 3. Invite Link Filter ──────────────────────────────────────────────────
-  if (AUTOMOD_CONFIG.inviteLinks.enabled) {
-    const allowed = AUTOMOD_CONFIG.inviteLinks.allowedChannels.some(
+  if (cfg.inviteLinks.enabled) {
+    const allowed = cfg.inviteLinks.allowedChannels.some(
       (c) => channelName === c || message.channelId === c
     );
     if (!allowed && containsInvite(content)) {
       try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(
-        message, member,
-        "Posting Discord invite links is not allowed",
-        "Unauthorized Invite Link"
-      );
+      await autoWarn(message, member, "Posting Discord invite links is not allowed", "Unauthorized Invite Link", cfg.logChannel);
       return;
     }
   }
 
-  // ── 4. Mass Mention Filter ─────────────────────────────────────────────────
-  if (AUTOMOD_CONFIG.massMention.enabled) {
-    const mentionCount =
-      message.mentions.users.size + message.mentions.roles.size;
-    if (mentionCount > AUTOMOD_CONFIG.massMention.maxMentions) {
+  if (cfg.massMention.enabled) {
+    const mentionCount = message.mentions.users.size + message.mentions.roles.size;
+    if (mentionCount > cfg.massMention.maxMentions) {
       try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(
-        message, member,
-        `Mass-mentioning ${mentionCount} users/roles in one message`,
-        "Mass Mention"
-      );
+      await autoWarn(message, member, `Mass-mentioning ${mentionCount} users/roles in one message`, "Mass Mention", cfg.logChannel);
       return;
     }
   }
 
-  // ── 5. Caps Spam Filter ────────────────────────────────────────────────────
-  if (AUTOMOD_CONFIG.capsSpam.enabled) {
-    if (
-      content.length >= AUTOMOD_CONFIG.capsSpam.minLength &&
-      capsPercent(content) >= AUTOMOD_CONFIG.capsSpam.maxCapsPercent
-    ) {
+  if (cfg.capsSpam.enabled) {
+    if (content.length >= cfg.capsSpam.minLength && capsPercent(content) >= cfg.capsSpam.maxCapsPercent) {
       try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(
-        message, member,
-        "Excessive use of capital letters",
-        "Caps Spam"
-      );
+      await autoWarn(message, member, "Excessive use of capital letters", "Caps Spam", cfg.logChannel);
       return;
     }
   }
 
-  // ── 6. External Link Filter (optional, disabled by default) ───────────────
-  if (AUTOMOD_CONFIG.externalLinks.enabled) {
-    const allowed = AUTOMOD_CONFIG.externalLinks.allowedChannels.some(
+  if (cfg.externalLinks.enabled) {
+    const allowed = cfg.externalLinks.allowedChannels.some(
       (c) => channelName === c || message.channelId === c
     );
     if (!allowed && containsExternalLink(content)) {
       try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(
-        message, member,
-        "External links are not allowed in this server",
-        "Unauthorized Link"
-      );
+      await autoWarn(message, member, "External links are not allowed in this server", "Unauthorized Link", cfg.logChannel);
     }
   }
 }
