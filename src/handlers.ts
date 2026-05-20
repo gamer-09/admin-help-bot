@@ -6,6 +6,7 @@ import {
   EmbedBuilder,
   ChannelType,
   MessageFlags,
+  ThreadAutoArchiveDuration,
 } from "discord.js";
 import { addInfraction, getUserRecord, clearWarnings, getUser, getEffectiveConfig, saveConfigOverride } from "./database";
 import {
@@ -406,6 +407,36 @@ export async function handleSetupRules(interaction: ChatInputCommandInteraction)
       ],
     });
 
+    // Community safety commands embed
+    await targetChannel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xfee75c)
+          .setTitle("🛡️ Community Safety Commands")
+          .setDescription("Every member has access to these commands to help keep the server safe:")
+          .addFields(
+            {
+              name: "/report <user> <reason>",
+              value:
+                "See someone breaking the rules? Report them directly to the moderation team. " +
+                "Your report is sent privately — other members won't see it.",
+            },
+            {
+              name: "/ticket <subject>",
+              value:
+                "Need to speak with a moderator privately? Open a support ticket and a staff member " +
+                "will respond in a private thread as soon as possible.",
+            },
+            {
+              name: "/appeal <reason>",
+              value:
+                "Received a warning you think was unfair? Submit an appeal and the moderation team " +
+                "will review your case and your infraction history.",
+            },
+          ),
+      ],
+    });
+
     // Footer / contact embed
     await targetChannel.send({
       embeds: [
@@ -413,8 +444,7 @@ export async function handleSetupRules(interaction: ChatInputCommandInteraction)
           .setColor(0x57f287)
           .setTitle("✅ By being in this server, you agree to all rules above.")
           .setDescription(
-            `If you see someone breaking the rules, **do not engage** — contact a staff member or ` +
-            `use the report system.\n\n` +
+            `If you see someone breaking the rules, **do not engage** — use \`/report\` to alert the moderation team privately.\n\n` +
             `Our moderation bot monitors the server 24/7 and will act automatically on clear violations. ` +
             `Staff review all actions and can adjust them if needed.\n\n` +
             `**Thank you for being part of ${guildName}! Enjoy your stay. 🎉**`
@@ -503,6 +533,13 @@ export async function handleHelp(interaction: ChatInputCommandInteraction): Prom
           {
             name: "🎉 Welcome System (always active)",
             value: "A welcome embed is posted in #welcome whenever a new member joins.",
+          },
+          {
+            name: "🛡️ Community Safety (available to all members)",
+            value:
+              "`/report <user> <reason>` — Report a user to the mod team privately\n" +
+              "`/ticket <subject>` — Open a private support thread with staff\n" +
+              "`/appeal <reason>` — Appeal a warning or punishment",
           },
           {
             name: "⚙️ Configuration (Admin only)",
@@ -632,4 +669,129 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
   }
 
   await interaction.editReply({ embeds: [errorEmbed("Unknown subcommand.")] });
+}
+
+export async function handleReport(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const targetUser = interaction.options.getUser("user", true);
+  const reason = interaction.options.getString("reason", true);
+  const cfg = getEffectiveConfig();
+
+  if (targetUser.id === interaction.user.id) {
+    await interaction.editReply({ embeds: [errorEmbed("You cannot report yourself.")] });
+    return;
+  }
+
+  const logChannel = interaction.guild!.channels.cache.find(
+    (c) => c.id === cfg.logChannel || c.name === cfg.logChannel
+  ) as TextChannel | undefined;
+
+  if (!logChannel) {
+    await interaction.editReply({ embeds: [errorEmbed("No mod-log channel configured. Ask an admin to run `/config logchannel`.")] });
+    return;
+  }
+
+  await logChannel.send({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle("🚨 Member Report")
+        .setThumbnail(targetUser.displayAvatarURL())
+        .addFields(
+          { name: "Reported User", value: `<@${targetUser.id}> \`${targetUser.tag}\``, inline: true },
+          { name: "Reporter", value: `<@${interaction.user.id}> \`${interaction.user.tag}\``, inline: true },
+          { name: "Channel", value: `<#${interaction.channelId}>`, inline: true },
+          { name: "Reason", value: reason },
+        )
+        .setFooter({ text: "Use /warn, /timeout, or /ban to take action" })
+        .setTimestamp(),
+    ],
+  });
+
+  await interaction.editReply({
+    embeds: [successEmbed("Your report has been submitted to the moderation team. Thank you for helping keep the server safe! 🙏")],
+  });
+}
+
+export async function handleTicket(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const subject = interaction.options.getString("subject", true);
+
+  const ticketChannel = (interaction.guild!.channels.cache.find(
+    (c) => c.name === "tickets" || c.name === "support" || c.name === "support-tickets"
+  ) as TextChannel | undefined) ?? (interaction.channel as TextChannel);
+
+  try {
+    const thread = await ticketChannel.threads.create({
+      name: `🎫 ${interaction.user.username} — ${subject.slice(0, 48)}`,
+      type: ChannelType.PrivateThread,
+      autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
+      reason: `Support ticket opened by ${interaction.user.tag}`,
+    });
+
+    await thread.members.add(interaction.user.id);
+
+    await thread.send({
+      content: `<@${interaction.user.id}>`,
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("🎫 Support Ticket")
+          .setDescription(
+            `Welcome, <@${interaction.user.id}>! A staff member will be with you shortly.\n\n` +
+            `**Subject:** ${subject}\n\n` +
+            `Please describe your issue in as much detail as possible. ` +
+            `Only you and the moderation team can see this thread.`
+          )
+          .setFooter({ text: "Staff: close this thread once resolved" })
+          .setTimestamp(),
+      ],
+    });
+
+    await interaction.editReply({
+      embeds: [successEmbed(`Your ticket has been created! Head to ${thread} to continue. Only you and staff can see it.`)],
+    });
+  } catch (e) {
+    await interaction.editReply({ embeds: [errorEmbed(`Failed to create ticket thread: ${e}`)] });
+  }
+}
+
+export async function handleAppeal(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const reason = interaction.options.getString("reason", true);
+  const cfg = getEffectiveConfig();
+  const record = getUserRecord(interaction.user.id);
+
+  const logChannel = interaction.guild!.channels.cache.find(
+    (c) => c.id === cfg.logChannel || c.name === cfg.logChannel
+  ) as TextChannel | undefined;
+
+  if (!logChannel) {
+    await interaction.editReply({ embeds: [errorEmbed("No mod-log channel configured. Contact a staff member directly.")] });
+    return;
+  }
+
+  const warningCount = record?.warnings ?? 0;
+  const infractionCount = record?.infractions?.length ?? 0;
+
+  await logChannel.send({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xfee75c)
+        .setTitle("📬 Warning Appeal")
+        .setThumbnail(interaction.user.displayAvatarURL())
+        .addFields(
+          { name: "User", value: `<@${interaction.user.id}> \`${interaction.user.tag}\``, inline: true },
+          { name: "Active Warnings", value: `${warningCount}`, inline: true },
+          { name: "Total Infractions on Record", value: `${infractionCount}`, inline: true },
+          { name: "Appeal Reason", value: reason },
+        )
+        .setFooter({ text: "Use /clearwarnings if the appeal is approved" })
+        .setTimestamp(),
+    ],
+  });
+
+  await interaction.editReply({
+    embeds: [successEmbed("Your appeal has been submitted to the moderation team. Please be patient while staff review your case.")],
+  });
 }
