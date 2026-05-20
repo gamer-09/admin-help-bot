@@ -1,4 +1,4 @@
-import http from "http";
+import express from "express";
 import {
   Client,
   GatewayIntentBits,
@@ -121,24 +121,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// HTTP server — must start first so Render detects the open port immediately
-const PORT = parseInt(process.env["PORT"] ?? "10000", 10);
+// Express HTTP server — Render requires binding to process.env.PORT on 0.0.0.0
+const app = express();
+const PORT = process.env["PORT"] || 10000;
 
-const server = http.createServer((req, res) => {
-  if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", bot: client.isReady() ? "online" : "connecting" }));
-  } else {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Admin Help Bot is running.");
-  }
+app.get("/", (_req, res) => {
+  res.send("Admin Help Bot is running.");
 });
 
-// Bind to 0.0.0.0 so Render's port scanner can detect it
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Health server listening on 0.0.0.0:${PORT}`);
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", bot: client.isReady() ? "online" : "connecting" });
+});
 
-  // Start the Discord bot only after the HTTP server is bound
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+
+  // Start Discord bot after HTTP server is confirmed bound
   client.login(TOKEN).catch((err) => {
     console.error("Failed to login to Discord:", err);
     process.exit(1);
