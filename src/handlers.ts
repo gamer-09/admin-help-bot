@@ -11,7 +11,7 @@ import {
 import { addInfraction, getUserRecord, clearWarnings, getUser, getEffectiveConfig, saveConfigOverride, saveWelcomeChannel, getWelcomeChannel } from "./database";
 import {
   warningEmbed, timeoutEmbed, kickEmbed, infractionListEmbed,
-  errorEmbed, successEmbed, serverStatsEmbed,
+  errorEmbed, successEmbed, serverStatsEmbed, welcomeEmbed,
 } from "./embeds";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -511,7 +511,8 @@ export async function handleHelp(interaction: ChatInputCommandInteraction): Prom
               "`/setuprules [channel]` — Post the full server rules embed into #rules\n" +
               "› Auto-finds your #rules channel by name\n" +
               "› Posts 5 formatted embeds covering all 10 server rules\n" +
-              "`/setwelcome <channel>` — Set the channel where welcome messages are posted",
+              "`/setwelcome <channel>` — Set the channel where welcome messages are posted\n" +
+              "`/testwelcome [user]` — Preview the welcome message without anyone joining",
           },
           {
             name: "ℹ️ Info",
@@ -819,5 +820,31 @@ export async function handleSetWelcome(interaction: ChatInputCommandInteraction)
         .setFooter({ text: "Use /setwelcome again to change it at any time" })
         .setTimestamp(),
     ],
+  });
+}
+
+export async function handleTestWelcome(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const targetUser = interaction.options.getUser("user") ?? interaction.user;
+  const member = await interaction.guild!.members.fetch(targetUser.id).catch(() => null);
+
+  if (!member) {
+    await interaction.editReply({ embeds: [errorEmbed("Could not find that member in this server.")] });
+    return;
+  }
+
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setDescription("Here's a preview of the welcome message that will be posted when a new member joins:")
+        .setFooter({ text: "This is only visible to you — no message was posted to the welcome channel." }),
+    ],
+  });
+
+  await interaction.followUp({
+    flags: MessageFlags.Ephemeral,
+    embeds: [welcomeEmbed(member)],
   });
 }
