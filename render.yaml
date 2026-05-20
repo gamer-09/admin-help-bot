@@ -5,6 +5,10 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /health
+    disk:
+      name: bot-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: DISCORD_BOT_TOKEN
         sync: false
@@ -12,4 +16,6 @@ services:
         sync: false
       - key: DISCORD_WELCOME_CHANNEL
         value: welcome
+      - key: DATA_DIR
+        value: /data
     autoDeploy: true
