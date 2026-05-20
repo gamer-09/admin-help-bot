@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 import { AUTOMOD_CONFIG } from "./config";
 
 const DB_PATH = process.env["DATA_DIR"]
@@ -38,17 +38,35 @@ interface BotDatabase {
   welcomeChannel?: string;
 }
 
+// ── In-memory cache ────────────────────────────────────────────────────────────
+// All reads/writes go through this cache so changes are immediately visible
+// within the same process lifetime, even if the file write fails.
+let memoryDB: BotDatabase | null = null;
+
 function loadDB(): BotDatabase {
-  if (!existsSync(DB_PATH)) return { users: {} };
-  try {
-    return JSON.parse(readFileSync(DB_PATH, "utf-8")) as BotDatabase;
-  } catch {
-    return { users: {} };
+  if (memoryDB !== null) return memoryDB;
+  if (!existsSync(DB_PATH)) {
+    memoryDB = { users: {} };
+    return memoryDB;
   }
+  try {
+    memoryDB = JSON.parse(readFileSync(DB_PATH, "utf-8")) as BotDatabase;
+  } catch {
+    memoryDB = { users: {} };
+  }
+  return memoryDB;
 }
 
 function saveDB(db: BotDatabase): void {
-  writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+  memoryDB = db;
+  try {
+    const dir = dirname(DB_PATH);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
+  } catch {
+    // File write failed (read-only or missing disk) — in-memory cache is still
+    // up to date so the bot continues working for this session.
+  }
 }
 
 export function getUser(userId: string, username: string): UserRecord {
