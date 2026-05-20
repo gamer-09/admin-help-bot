@@ -16,17 +16,19 @@ import {
 import { commands } from "./commands";
 import { welcomeEmbed } from "./embeds";
 import { handleAutoMod } from "./automod";
+import { getWelcomeChannel } from "./database";
 import {
   handleWarn, handleTimeout, handleUntimeout, handleKick,
   handleBan, handleUnban, handleClearWarnings, handleInfractions,
   handlePurge, handleAnnounce, handleSlowmode, handleLock,
   handleUnlock, handleRole, handleServerInfo, handleUserInfo, handleHelp,
   handleSetupRules, handleConfig, handleReport, handleTicket, handleAppeal,
+  handleSetWelcome,
 } from "./handlers";
 
 const TOKEN = process.env["DISCORD_BOT_TOKEN"];
 const GUILD_ID = process.env["DISCORD_GUILD_ID"];
-const WELCOME_CHANNEL = process.env["DISCORD_WELCOME_CHANNEL"] ?? "welcome";
+const DEFAULT_WELCOME_CHANNEL = process.env["DISCORD_WELCOME_CHANNEL"] ?? "welcome";
 
 if (!TOKEN) throw new Error("Missing DISCORD_BOT_TOKEN environment variable");
 if (!GUILD_ID) throw new Error("Missing DISCORD_GUILD_ID environment variable");
@@ -72,10 +74,19 @@ client.on(Events.MessageCreate, async (message) => {
 
 client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
   try {
+    // Prefer the channel saved via /setwelcome, fall back to the env var
+    const savedChannelId = getWelcomeChannel();
+    const channelQuery = savedChannelId ?? DEFAULT_WELCOME_CHANNEL;
+
     const channel = member.guild.channels.cache.find(
-      (c) => c.name === WELCOME_CHANNEL || c.id === WELCOME_CHANNEL
+      (c) => c.id === channelQuery || c.name === channelQuery
     ) as TextChannel | undefined;
-    if (!channel) { console.warn(`Welcome channel "${WELCOME_CHANNEL}" not found`); return; }
+
+    if (!channel) {
+      console.warn(`Welcome channel "${channelQuery}" not found`);
+      return;
+    }
+
     await channel.send({ embeds: [welcomeEmbed(member)] });
     console.log(`Welcome message sent for ${member.user.tag}`);
   } catch (err) {
@@ -112,6 +123,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       report: handleReport,
       ticket: handleTicket,
       appeal: handleAppeal,
+      setwelcome: handleSetWelcome,
     };
 
     const handler = handlers[commandName];
