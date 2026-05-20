@@ -434,16 +434,78 @@ export async function handleSetupRules(interaction: ChatInputCommandInteraction)
 export async function handleHelp(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.reply({
     ephemeral: true,
-    embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle("🤖 Bot Commands")
-      .addFields(
-        { name: "⚠️ Progressive Discipline (/warn)", value: "1st → Warning\n2nd → 10-min Timeout\n3rd → Final Warning\n4th → Permanent Ban" },
-        { name: "🔨 Moderation", value: "`/timeout` `/untimeout` `/kick` `/ban` `/unban`" },
-        { name: "📋 Records", value: "`/infractions` `/clearwarnings`" },
-        { name: "🛠️ Admin Tools", value: "`/purge` `/slowmode` `/lock` `/unlock` `/role` `/announce`" },
-        { name: "ℹ️ Info", value: "`/serverinfo` `/userinfo` `/help`" },
-        { name: "🎉 Auto Features", value: "Welcome message posted in #welcome when a new member joins." }
-      )
-      .setFooter({ text: "All mod commands require appropriate Discord permissions." })
-      .setTimestamp()],
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle("🤖 Admin Help Bot — Command Reference")
+        .setDescription("Full list of all available commands. Commands are restricted to members with the appropriate Discord permissions.")
+        .addFields(
+          {
+            name: "⚠️ Progressive Discipline",
+            value:
+              "`/warn <user> <reason>` — Issue a warning. Auto-escalates:\n" +
+              "› **1st** → Warning DM\n" +
+              "› **2nd** → 10-min timeout\n" +
+              "› **3rd** → Final warning DM\n" +
+              "› **4th** → Permanent ban",
+          },
+          {
+            name: "🔨 Moderation",
+            value:
+              "`/timeout <user> <reason> [duration]` — Manually timeout a user\n" +
+              "`/untimeout <user>` — Remove a timeout\n" +
+              "`/kick <user> <reason>` — Kick a user from the server\n" +
+              "`/ban <user> <reason> [delete_days]` — Permanently ban a user\n" +
+              "`/unban <userid> [reason]` — Unban a user by ID",
+          },
+          {
+            name: "📋 Infraction Records",
+            value:
+              "`/infractions <user>` — View a user's full warning history\n" +
+              "`/clearwarnings <user>` — Reset all warnings for a user",
+          },
+          {
+            name: "🛠️ Admin Tools",
+            value:
+              "`/purge <amount> [user]` — Bulk delete up to 100 messages\n" +
+              "`/announce <message> [title] [channel]` — Post a formatted announcement\n" +
+              "`/slowmode <seconds> [channel]` — Set channel slowmode (0 to disable)\n" +
+              "`/lock [reason]` — Lock current channel (members can't send)\n" +
+              "`/unlock` — Unlock current channel\n" +
+              "`/role <add|remove> <user> <role>` — Add or remove a role",
+          },
+          {
+            name: "📜 Server Setup",
+            value:
+              "`/setuprules [channel]` — Post the full server rules embed into #rules\n" +
+              "› Auto-finds your #rules channel by name\n" +
+              "› Posts 5 formatted embeds covering all 10 server rules",
+          },
+          {
+            name: "ℹ️ Info",
+            value:
+              "`/serverinfo` — View server stats (members, channels, roles)\n" +
+              "`/userinfo [user]` — View a user's info and warning count\n" +
+              "`/help` — Show this command reference",
+          },
+          {
+            name: "🤖 Auto-Mod (always active)",
+            value:
+              "The bot watches every message 24/7 and acts automatically:\n" +
+              "› **Spam** — 5+ messages in 5 seconds\n" +
+              "› **Hate speech / slurs** — Instant delete + warn\n" +
+              "› **Invite links** — Deleted outside allowed channels\n" +
+              "› **Mass mentions** — 5+ pings in one message\n" +
+              "› **Caps spam** — 70%+ uppercase messages\n" +
+              "All violations are logged to #mod-logs and follow the same discipline scale.",
+          },
+          {
+            name: "🎉 Welcome System (always active)",
+            value: "A welcome embed is posted in #welcome whenever a new member joins.",
+          }
+        )
+        .setFooter({ text: "Mod commands require Moderate Members or higher • Admin commands require Administrator" })
+        .setTimestamp(),
+    ],
   });
 }
