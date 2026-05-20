@@ -21,7 +21,7 @@ import {
   handleBan, handleUnban, handleClearWarnings, handleInfractions,
   handlePurge, handleAnnounce, handleSlowmode, handleLock,
   handleUnlock, handleRole, handleServerInfo, handleUserInfo, handleHelp,
-  handleSetupRules,
+  handleSetupRules, handleConfig,
 } from "./handlers";
 
 const TOKEN = process.env["DISCORD_BOT_TOKEN"];
@@ -37,9 +37,14 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.MessageContent, // Privileged — must be enabled in Dev Portal
+    GatewayIntentBits.MessageContent,
   ],
   partials: [Partials.GuildMember],
+});
+
+// Prevent unhandled 'error' events from crashing the process
+client.on(Events.Error, (err) => {
+  console.error("Discord client error:", err);
 });
 
 async function registerCommands(appId: string): Promise<void> {
@@ -59,7 +64,6 @@ client.once(Events.ClientReady, async (readyClient) => {
   await registerCommands(readyClient.user.id);
 });
 
-// Auto-mod: watch every message for rule violations
 client.on(Events.MessageCreate, async (message) => {
   await handleAutoMod(message).catch((err) =>
     console.error("Auto-mod error:", err)
@@ -104,6 +108,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       userinfo: handleUserInfo,
       help: handleHelp,
       setuprules: handleSetupRules,
+      config: handleConfig,
     };
 
     const handler = handlers[commandName];
@@ -114,16 +119,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   } catch (err) {
     console.error(`Error handling /${commandName}:`, err);
-    const errMsg: InteractionReplyOptions = { content: "An error occurred while running that command.", flags: MessageFlags.Ephemeral };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(errMsg);
-    } else {
-      await interaction.reply(errMsg);
+    const errMsg: InteractionReplyOptions = {
+      content: "An error occurred while running that command.",
+      flags: MessageFlags.Ephemeral,
+    };
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(errMsg);
+      } else {
+        await interaction.reply(errMsg);
+      }
+    } catch {
+      // Interaction token expired — nothing we can do
     }
   }
 });
 
-// Express HTTP server — Render requires binding to process.env.PORT on 0.0.0.0
 const app = express();
 const PORT = process.env["PORT"] || 10000;
 
@@ -137,8 +148,6 @@ app.get("/health", (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
-
-  // Start Discord bot after HTTP server is confirmed bound
   client.login(TOKEN).catch((err) => {
     console.error("Failed to login to Discord:", err);
     process.exit(1);
