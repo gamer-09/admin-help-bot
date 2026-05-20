@@ -218,4 +218,12 @@ export const commands = [
       o.setName("channel").setDescription("The welcome channel").setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("testwelcome")
+    .setDescription("Preview the welcome message as if you just joined the server")
+    .addUserOption((o) =>
+      o.setName("user").setDescription("Member to use as the preview subject (default: yourself)")
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map((c) => c.toJSON());
