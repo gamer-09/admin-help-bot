@@ -163,6 +163,63 @@ async function autoWarn(
   }
 }
 
+// ─── Detect which rule a message breaks (null = clean) ───────────────────────
+
+function detectViolation(
+  message: Message,
+  cfg: ReturnType<typeof getEffectiveConfig>
+): { reason: string; type: string } | null {
+  const content = message.content;
+  const channelName = (message.channel as TextChannel).name ?? "";
+
+  if (cfg.spam.enabled && trackSpam(message.author.id, cfg.spam.windowMs, cfg.spam.maxMessages)) {
+    return { reason: `Sending more than ${cfg.spam.maxMessages} messages in ${cfg.spam.windowMs / 1000}s`, type: "Spam" };
+  }
+  if (cfg.badWords.enabled) {
+    const found = containsBadWord(content, cfg.badWords.words);
+    if (found) return { reason: `Use of prohibited language: "${found}"`, type: "Prohibited Language" };
+  }
+  if (cfg.inviteLinks.enabled) {
+    const allowed = cfg.inviteLinks.allowedChannels.some((c) => channelName === c || message.channelId === c);
+    if (!allowed && containsInvite(content)) return { reason: "Posting Discord invite links is not allowed", type: "Unauthorized Invite Link" };
+  }
+  if (cfg.massMention.enabled) {
+    const mentionCount = message.mentions.users.size + message.mentions.roles.size;
+    if (mentionCount > cfg.massMention.maxMentions) return { reason: `Mass-mentioning ${mentionCount} users/roles in one message`, type: "Mass Mention" };
+  }
+  if (cfg.capsSpam.enabled && content.length >= cfg.capsSpam.minLength && capsPercent(content) >= cfg.capsSpam.maxCapsPercent) {
+    return { reason: "Excessive use of capital letters", type: "Caps Spam" };
+  }
+  if (cfg.externalLinks.enabled) {
+    const allowed = cfg.externalLinks.allowedChannels.some((c) => channelName === c || message.channelId === c);
+    if (!allowed && containsExternalLink(content)) return { reason: "External links are not allowed in this server", type: "Unauthorized Link" };
+  }
+  return null;
+}
+
+// ─── Nudge immune members who break a rule ────────────────────────────────────
+
+async function sendImmuneNudge(message: Message, violationType: string, reason: string): Promise<void> {
+  const guildName = message.guild!.name;
+  try {
+    await message.author.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xfee75c)
+          .setTitle("👀 Just a friendly reminder…")
+          .setDescription(
+            `Hey ${message.author}, you broke one of **${guildName}**'s rules — but since you're a staff member, the bot didn't take action.\n\n` +
+            `**Rule triggered:** ${violationType}\n` +
+            `**Detail:** ${reason}\n\n` +
+            `The community looks to you to set the example. Keep it clean! 😊`
+          )
+          .setFooter({ text: `${guildName} • Auto-Mod (immune reminder)` })
+          .setTimestamp(),
+      ],
+    });
+  } catch { /* DMs closed — silently ignore */ }
+}
+
 // ─── Main Auto-Mod Handler ────────────────────────────────────────────────────
 
 export async function handleAutoMod(message: Message): Promise<void> {
@@ -170,67 +227,15 @@ export async function handleAutoMod(message: Message): Promise<void> {
 
   const member = message.member;
   const cfg = getEffectiveConfig();
+  const violation = detectViolation(message, cfg);
 
-  if (isImmune(member, cfg.immuneRoles)) return;
+  if (!violation) return;
 
-  const content = message.content;
-  const channelName = (message.channel as TextChannel).name ?? "";
-
-  if (cfg.spam.enabled && trackSpam(message.author.id, cfg.spam.windowMs, cfg.spam.maxMessages)) {
-    try { await message.delete(); } catch { /* already deleted */ }
-    await autoWarn(
-      message, member,
-      `Sending more than ${cfg.spam.maxMessages} messages in ${cfg.spam.windowMs / 1000}s`,
-      "Spam",
-      cfg.logChannel
-    );
+  if (isImmune(member, cfg.immuneRoles)) {
+    await sendImmuneNudge(message, violation.type, violation.reason);
     return;
   }
 
-  if (cfg.badWords.enabled) {
-    const found = containsBadWord(content, cfg.badWords.words);
-    if (found) {
-      try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(message, member, `Use of prohibited language: "${found}"`, "Prohibited Language", cfg.logChannel);
-      return;
-    }
-  }
-
-  if (cfg.inviteLinks.enabled) {
-    const allowed = cfg.inviteLinks.allowedChannels.some(
-      (c) => channelName === c || message.channelId === c
-    );
-    if (!allowed && containsInvite(content)) {
-      try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(message, member, "Posting Discord invite links is not allowed", "Unauthorized Invite Link", cfg.logChannel);
-      return;
-    }
-  }
-
-  if (cfg.massMention.enabled) {
-    const mentionCount = message.mentions.users.size + message.mentions.roles.size;
-    if (mentionCount > cfg.massMention.maxMentions) {
-      try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(message, member, `Mass-mentioning ${mentionCount} users/roles in one message`, "Mass Mention", cfg.logChannel);
-      return;
-    }
-  }
-
-  if (cfg.capsSpam.enabled) {
-    if (content.length >= cfg.capsSpam.minLength && capsPercent(content) >= cfg.capsSpam.maxCapsPercent) {
-      try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(message, member, "Excessive use of capital letters", "Caps Spam", cfg.logChannel);
-      return;
-    }
-  }
-
-  if (cfg.externalLinks.enabled) {
-    const allowed = cfg.externalLinks.allowedChannels.some(
-      (c) => channelName === c || message.channelId === c
-    );
-    if (!allowed && containsExternalLink(content)) {
-      try { await message.delete(); } catch { /* already deleted */ }
-      await autoWarn(message, member, "External links are not allowed in this server", "Unauthorized Link", cfg.logChannel);
-    }
-  }
+  try { await message.delete(); } catch { /* already deleted */ }
+  await autoWarn(message, member, violation.reason, violation.type, cfg.logChannel);
 }
