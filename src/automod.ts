@@ -171,10 +171,7 @@ export async function handleAutoMod(message: Message): Promise<void> {
   const member = message.member;
   const cfg = getEffectiveConfig();
 
-  const immune = isImmune(member, cfg.immuneRoles);
-  console.log(`[AutoMod] ${message.author.tag} | immune=${immune} | content="${message.content.slice(0, 80)}" | len=${message.content.length}`);
-
-  if (immune) return;
+  if (isImmune(member, cfg.immuneRoles)) return;
 
   const content = message.content;
   const channelName = (message.channel as TextChannel).name ?? "";
