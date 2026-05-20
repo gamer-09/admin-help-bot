@@ -120,4 +120,12 @@ export const commands = [
   new SlashCommandBuilder()
     .setName("help")
     .setDescription("Show all available bot commands"),
+
+  new SlashCommandBuilder()
+    .setName("setuprules")
+    .setDescription("Post the server rules embed into the rules channel")
+    .addChannelOption((o) =>
+      o.setName("channel").setDescription("Channel to post rules in (default: #rules)")
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map((c) => c.toJSON());
