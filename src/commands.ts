@@ -128,4 +128,70 @@ export const commands = [
       o.setName("channel").setDescription("Channel to post rules in (default: #rules)")
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("config")
+    .setDescription("View or adjust automod configuration")
+    .addSubcommand((sub) =>
+      sub.setName("view").setDescription("Show current automod settings")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("toggle")
+        .setDescription("Enable or disable an automod feature")
+        .addStringOption((o) =>
+          o.setName("feature").setDescription("Feature to toggle").setRequired(true)
+            .addChoices(
+              { name: "spam", value: "spam" },
+              { name: "bad-words", value: "badWords" },
+              { name: "invite-links", value: "inviteLinks" },
+              { name: "mass-mention", value: "massMention" },
+              { name: "caps-spam", value: "capsSpam" },
+              { name: "external-links", value: "externalLinks" },
+            )
+        )
+        .addBooleanOption((o) =>
+          o.setName("enabled").setDescription("Turn on or off").setRequired(true)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("badwords")
+        .setDescription("Add or remove a word from the bad word filter")
+        .addStringOption((o) =>
+          o.setName("action").setDescription("add or remove").setRequired(true)
+            .addChoices({ name: "add", value: "add" }, { name: "remove", value: "remove" })
+        )
+        .addStringOption((o) =>
+          o.setName("word").setDescription("The word to add or remove").setRequired(true)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("spam")
+        .setDescription("Adjust spam detection thresholds")
+        .addIntegerOption((o) =>
+          o.setName("threshold").setDescription("Max messages in window before action (default: 5)").setMinValue(2).setMaxValue(30)
+        )
+        .addIntegerOption((o) =>
+          o.setName("window").setDescription("Time window in seconds (default: 5)").setMinValue(1).setMaxValue(60)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("caps")
+        .setDescription("Adjust the caps-spam percentage threshold")
+        .addIntegerOption((o) =>
+          o.setName("threshold").setDescription("Minimum % uppercase to trigger (default: 70)").setRequired(true).setMinValue(10).setMaxValue(100)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("logchannel")
+        .setDescription("Set the channel where automod actions are logged")
+        .addChannelOption((o) =>
+          o.setName("channel").setDescription("The log channel").setRequired(true)
+        )
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map((c) => c.toJSON());
