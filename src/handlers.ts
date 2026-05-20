@@ -278,19 +278,234 @@ export async function handleUserInfo(interaction: ChatInputCommandInteraction): 
   await interaction.editReply({ embeds: [embed] });
 }
 
+export async function handleSetupRules(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+  const targetChannel =
+    (interaction.options.getChannel("channel") as TextChannel | null) ??
+    (interaction.guild!.channels.cache.find(
+      (c) => c.name === "rules" || c.name === "server-rules" || c.name === "📜rules"
+    ) as TextChannel | undefined) ??
+    (interaction.channel as TextChannel);
+
+  const guildName = interaction.guild!.name;
+  const guildIcon = interaction.guild!.iconURL({ size: 256 }) ?? undefined;
+
+  try {
+    // Header embed
+    await targetChannel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle(`📜 ${guildName} — Server Rules`)
+          .setDescription(
+            `Welcome to **${guildName}**! To keep this a safe and enjoyable community for everyone, ` +
+            `please read and follow all rules below.\n\n` +
+            `Violations are handled by our moderation team and auto-mod system.\n` +
+            `Consequences escalate with each offence:\n\n` +
+            `> ⚠️ **1st offence** — Warning\n` +
+            `> 🔇 **2nd offence** — 10-minute timeout\n` +
+            `> 🚨 **3rd offence** — Final warning\n` +
+            `> 🔨 **4th offence** — Permanent ban`
+          )
+          .setThumbnail(guildIcon ?? null)
+          .setTimestamp(),
+      ],
+    });
+
+    // Rules embed
+    await targetChannel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("📋 General Conduct")
+          .addFields(
+            {
+              name: "Rule 1 — Respect Everyone",
+              value:
+                "Treat all members with respect. Harassment, bullying, personal attacks, " +
+                "or any form of targeted negativity toward another member is strictly prohibited.",
+            },
+            {
+              name: "Rule 2 — No Hate Speech or Slurs",
+              value:
+                "The use of slurs, hate speech, or language that discriminates against any person " +
+                "based on race, ethnicity, gender, sexuality, religion, or disability is **not tolerated** " +
+                "and will result in an immediate warning or ban.",
+            },
+            {
+              name: "Rule 3 — No Spam",
+              value:
+                "Do not send repeated messages, walls of text, or flood any channel. " +
+                "This includes sending more than 5 messages in a 5-second window, " +
+                "excessive use of emojis, or copy-pasting the same content repeatedly.",
+            },
+            {
+              name: "Rule 4 — No Caps Spam",
+              value:
+                "Avoid messages that are predominantly uppercase (70%+ caps). " +
+                "This is considered aggressive and disruptive to conversation.",
+            },
+          ),
+      ],
+    });
+
+    await targetChannel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("🔗 Links & Promotions")
+          .addFields(
+            {
+              name: "Rule 5 — No Unauthorized Invite Links",
+              value:
+                "Posting Discord server invite links anywhere outside of designated promotional channels " +
+                "is not allowed. This includes DM advertising after meeting in this server.",
+            },
+            {
+              name: "Rule 6 — No Mass Mentions",
+              value:
+                "Do not mention (ping) more than 5 users or roles in a single message. " +
+                "Unnecessary pinging of @everyone or @here without admin permission is also prohibited.",
+            },
+            {
+              name: "Rule 7 — No NSFW Content",
+              value:
+                "Explicit, adult, or not-safe-for-work content of any kind is strictly prohibited " +
+                "outside of age-restricted channels (if any exist). This includes images, links, and text.",
+            },
+          ),
+      ],
+    });
+
+    await targetChannel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("🛠️ Channels & Topics")
+          .addFields(
+            {
+              name: "Rule 8 — Stay On Topic",
+              value:
+                "Keep conversations relevant to the channel you are in. " +
+                "Read the channel description before posting to make sure you are in the right place.",
+            },
+            {
+              name: "Rule 9 — No Impersonation",
+              value:
+                "Do not impersonate other members, staff, bots, or public figures. " +
+                "This includes using similar names, avatars, or roles to deceive others.",
+            },
+            {
+              name: "Rule 10 — Follow Discord's Terms of Service",
+              value:
+                "All members must comply with [Discord's Terms of Service](https://discord.com/terms) " +
+                "and [Community Guidelines](https://discord.com/guidelines) at all times.",
+            },
+          ),
+      ],
+    });
+
+    // Footer / contact embed
+    await targetChannel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x57f287)
+          .setTitle("✅ By being in this server, you agree to all rules above.")
+          .setDescription(
+            `If you see someone breaking the rules, **do not engage** — contact a staff member or ` +
+            `use the report system.\n\n` +
+            `Our moderation bot monitors the server 24/7 and will act automatically on clear violations. ` +
+            `Staff review all actions and can adjust them if needed.\n\n` +
+            `**Thank you for being part of ${guildName}! Enjoy your stay. 🎉**`
+          )
+          .setFooter({ text: `${guildName} Moderation Team`, iconURL: guildIcon })
+          .setTimestamp(),
+      ],
+    });
+
+    await interaction.editReply({
+      embeds: [successEmbed(`Server rules posted in <#${targetChannel.id}>.`)],
+    });
+  } catch (e) {
+    await interaction.editReply({ embeds: [errorEmbed(`Failed to post rules: ${e}`)] });
+  }
+}
+
 export async function handleHelp(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.reply({
     ephemeral: true,
-    embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle("🤖 Bot Commands")
-      .addFields(
-        { name: "⚠️ Progressive Discipline (/warn)", value: "1st → Warning\n2nd → 10-min Timeout\n3rd → Final Warning\n4th → Permanent Ban" },
-        { name: "🔨 Moderation", value: "`/timeout` `/untimeout` `/kick` `/ban` `/unban`" },
-        { name: "📋 Records", value: "`/infractions` `/clearwarnings`" },
-        { name: "🛠️ Admin Tools", value: "`/purge` `/slowmode` `/lock` `/unlock` `/role` `/announce`" },
-        { name: "ℹ️ Info", value: "`/serverinfo` `/userinfo` `/help`" },
-        { name: "🎉 Auto Features", value: "Welcome message posted in #welcome when a new member joins." }
-      )
-      .setFooter({ text: "All mod commands require appropriate Discord permissions." })
-      .setTimestamp()],
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle("🤖 Admin Help Bot — Command Reference")
+        .setDescription("Full list of all available commands. Commands are restricted to members with the appropriate Discord permissions.")
+        .addFields(
+          {
+            name: "⚠️ Progressive Discipline",
+            value:
+              "`/warn <user> <reason>` — Issue a warning. Auto-escalates:\n" +
+              "› **1st** → Warning DM\n" +
+              "› **2nd** → 10-min timeout\n" +
+              "› **3rd** → Final warning DM\n" +
+              "› **4th** → Permanent ban",
+          },
+          {
+            name: "🔨 Moderation",
+            value:
+              "`/timeout <user> <reason> [duration]` — Manually timeout a user\n" +
+              "`/untimeout <user>` — Remove a timeout\n" +
+              "`/kick <user> <reason>` — Kick a user from the server\n" +
+              "`/ban <user> <reason> [delete_days]` — Permanently ban a user\n" +
+              "`/unban <userid> [reason]` — Unban a user by ID",
+          },
+          {
+            name: "📋 Infraction Records",
+            value:
+              "`/infractions <user>` — View a user's full warning history\n" +
+              "`/clearwarnings <user>` — Reset all warnings for a user",
+          },
+          {
+            name: "🛠️ Admin Tools",
+            value:
+              "`/purge <amount> [user]` — Bulk delete up to 100 messages\n" +
+              "`/announce <message> [title] [channel]` — Post a formatted announcement\n" +
+              "`/slowmode <seconds> [channel]` — Set channel slowmode (0 to disable)\n" +
+              "`/lock [reason]` — Lock current channel (members can't send)\n" +
+              "`/unlock` — Unlock current channel\n" +
+              "`/role <add|remove> <user> <role>` — Add or remove a role",
+          },
+          {
+            name: "📜 Server Setup",
+            value:
+              "`/setuprules [channel]` — Post the full server rules embed into #rules\n" +
+              "› Auto-finds your #rules channel by name\n" +
+              "› Posts 5 formatted embeds covering all 10 server rules",
+          },
+          {
+            name: "ℹ️ Info",
+            value:
+              "`/serverinfo` — View server stats (members, channels, roles)\n" +
+              "`/userinfo [user]` — View a user's info and warning count\n" +
+              "`/help` — Show this command reference",
+          },
+          {
+            name: "🤖 Auto-Mod (always active)",
+            value:
+              "The bot watches every message 24/7 and acts automatically:\n" +
+              "› **Spam** — 5+ messages in 5 seconds\n" +
+              "› **Hate speech / slurs** — Instant delete + warn\n" +
+              "› **Invite links** — Deleted outside allowed channels\n" +
+              "› **Mass mentions** — 5+ pings in one message\n" +
+              "› **Caps spam** — 70%+ uppercase messages\n" +
+              "All violations are logged to #mod-logs and follow the same discipline scale.",
+          },
+          {
+            name: "🎉 Welcome System (always active)",
+            value: "A welcome embed is posted in #welcome whenever a new member joins.",
+          }
+        )
+        .setFooter({ text: "Mod commands require Moderate Members or higher • Admin commands require Administrator" })
+        .setTimestamp(),
+    ],
   });
 }
