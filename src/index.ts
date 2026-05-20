@@ -1,3 +1,4 @@
+import express from "express";
 import {
   Client,
   GatewayIntentBits,
@@ -12,11 +13,13 @@ import {
 } from "discord.js";
 import { commands } from "./commands";
 import { welcomeEmbed } from "./embeds";
+import { handleAutoMod } from "./automod";
 import {
   handleWarn, handleTimeout, handleUntimeout, handleKick,
   handleBan, handleUnban, handleClearWarnings, handleInfractions,
   handlePurge, handleAnnounce, handleSlowmode, handleLock,
   handleUnlock, handleRole, handleServerInfo, handleUserInfo, handleHelp,
+  handleSetupRules,
 } from "./handlers";
 
 const TOKEN = process.env["DISCORD_BOT_TOKEN"];
@@ -32,6 +35,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.MessageContent, // Privileged — must be enabled in Dev Portal
   ],
   partials: [Partials.GuildMember],
 });
@@ -51,6 +55,13 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Logged in as ${readyClient.user.tag}`);
   readyClient.user.setActivity("the server", { type: ActivityType.Watching });
   await registerCommands(readyClient.user.id);
+});
+
+// Auto-mod: watch every message for rule violations
+client.on(Events.MessageCreate, async (message) => {
+  await handleAutoMod(message).catch((err) =>
+    console.error("Auto-mod error:", err)
+  );
 });
 
 client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
@@ -90,6 +101,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       serverinfo: handleServerInfo,
       userinfo: handleUserInfo,
       help: handleHelp,
+      setuprules: handleSetupRules,
     };
 
     const handler = handlers[commandName];
@@ -109,7 +121,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-client.login(TOKEN).catch((err) => {
-  console.error("Failed to login:", err);
-  process.exit(1);
+// Express HTTP server — Render requires binding to process.env.PORT on 0.0.0.0
+const app = express();
+const PORT = process.env["PORT"] || 10000;
+
+app.get("/", (_req, res) => {
+  res.send("Admin Help Bot is running.");
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", bot: client.isReady() ? "online" : "connecting" });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+
+  // Start Discord bot after HTTP server is confirmed bound
+  client.login(TOKEN).catch((err) => {
+    console.error("Failed to login to Discord:", err);
+    process.exit(1);
+  });
 });
