@@ -5,6 +5,7 @@ import {
   PermissionFlagsBits,
   EmbedBuilder,
   ChannelType,
+  MessageFlags,
 } from "discord.js";
 import { addInfraction, getUserRecord, clearWarnings, getUser } from "./database";
 import {
@@ -152,7 +153,7 @@ export async function handleUnban(interaction: ChatInputCommandInteraction): Pro
 }
 
 export async function handleClearWarnings(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const targetUser = interaction.options.getUser("user", true);
   const cleared = clearWarnings(targetUser.id);
   await interaction.editReply({ embeds: [cleared
@@ -161,7 +162,7 @@ export async function handleClearWarnings(interaction: ChatInputCommandInteracti
 }
 
 export async function handleInfractions(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const targetUser = interaction.options.getUser("user", true);
   const record = getUserRecord(targetUser.id);
   if (!record) {
@@ -174,7 +175,7 @@ export async function handleInfractions(interaction: ChatInputCommandInteraction
 }
 
 export async function handlePurge(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const amount = interaction.options.getInteger("amount", true);
   const targetUser = interaction.options.getUser("user");
   const channel = interaction.channel as TextChannel;
@@ -190,7 +191,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
 }
 
 export async function handleAnnounce(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const message = interaction.options.getString("message", true);
   const title = interaction.options.getString("title") ?? "📢 Announcement";
   const targetChannel = (interaction.options.getChannel("channel") as TextChannel | null) ?? (interaction.channel as TextChannel);
@@ -202,7 +203,7 @@ export async function handleAnnounce(interaction: ChatInputCommandInteraction): 
 }
 
 export async function handleSlowmode(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const seconds = interaction.options.getInteger("seconds", true);
   const targetChannel = (interaction.options.getChannel("channel") as TextChannel | null) ?? (interaction.channel as TextChannel);
   try {
@@ -214,7 +215,7 @@ export async function handleSlowmode(interaction: ChatInputCommandInteraction): 
 }
 
 export async function handleLock(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const reason = interaction.options.getString("reason") ?? "Channel locked by moderator";
   const channel = interaction.channel as TextChannel;
   const everyoneRole = interaction.guild!.roles.everyone;
@@ -227,7 +228,7 @@ export async function handleLock(interaction: ChatInputCommandInteraction): Prom
 }
 
 export async function handleUnlock(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const channel = interaction.channel as TextChannel;
   const everyoneRole = interaction.guild!.roles.everyone;
   try {
@@ -239,7 +240,7 @@ export async function handleUnlock(interaction: ChatInputCommandInteraction): Pr
 }
 
 export async function handleRole(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const action = interaction.options.getString("action", true) as "add" | "remove";
   const targetUser = interaction.options.getUser("user", true);
   const role = interaction.options.getRole("role", true);
@@ -279,7 +280,7 @@ export async function handleUserInfo(interaction: ChatInputCommandInteraction): 
 }
 
 export async function handleSetupRules(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const targetChannel =
     (interaction.options.getChannel("channel") as TextChannel | null) ??
     (interaction.guild!.channels.cache.find(
@@ -433,7 +434,7 @@ export async function handleSetupRules(interaction: ChatInputCommandInteraction)
 
 export async function handleHelp(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.reply({
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
     embeds: [
       new EmbedBuilder()
         .setColor(0x5865f2)
