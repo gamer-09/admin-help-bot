@@ -23,7 +23,7 @@ import {
   handlePurge, handleAnnounce, handleSlowmode, handleLock,
   handleUnlock, handleRole, handleServerInfo, handleUserInfo, handleHelp,
   handleSetupRules, handleConfig, handleReport, handleTicket, handleAppeal,
-  handleSetWelcome,
+  handleSetWelcome, handleTestWelcome,
 } from "./handlers";
 
 const TOKEN = process.env["DISCORD_BOT_TOKEN"];
@@ -124,6 +124,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       ticket: handleTicket,
       appeal: handleAppeal,
       setwelcome: handleSetWelcome,
+      testwelcome: handleTestWelcome,
     };
 
     const handler = handlers[commandName];
