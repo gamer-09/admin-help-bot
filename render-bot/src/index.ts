@@ -19,6 +19,7 @@ import {
   handleBan, handleUnban, handleClearWarnings, handleInfractions,
   handlePurge, handleAnnounce, handleSlowmode, handleLock,
   handleUnlock, handleRole, handleServerInfo, handleUserInfo, handleHelp,
+  handleSetupRules,
 } from "./handlers";
 
 const TOKEN = process.env["DISCORD_BOT_TOKEN"];
@@ -100,6 +101,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       serverinfo: handleServerInfo,
       userinfo: handleUserInfo,
       help: handleHelp,
+      setuprules: handleSetupRules,
     };
 
     const handler = handlers[commandName];
