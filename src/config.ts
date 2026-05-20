@@ -21,6 +21,10 @@ export const AUTOMOD_CONFIG = {
     words: [
       "nigga", "nigger", "faggot", "fag", "retard", "cunt",
       "chink", "spic", "kike", "tranny",
+      "fuck", "fucker", "fucking", "motherfucker",
+      "shit", "bullshit",
+      "pussy", "asshole", "bastard", "bitch",
+      "dick", "cock", "whore", "slut",
     ],
   },
 
