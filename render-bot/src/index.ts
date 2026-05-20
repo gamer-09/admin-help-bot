@@ -122,7 +122,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 // HTTP server — must start first so Render detects the open port immediately
-const PORT = parseInt(process.env["PORT"] ?? "3002", 10);
+const PORT = parseInt(process.env["PORT"] ?? "10000", 10);
 
 const server = http.createServer((req, res) => {
   if (req.url === "/health") {
