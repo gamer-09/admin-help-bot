@@ -1,0 +1,25 @@
+{
+  "name": "admin-help-bot",
+  "version": "1.0.0",
+  "description": "Discord admin and moderation bot",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node --esm src/index.ts"
+  },
+  "dependencies": {
+    "@discordjs/rest": "^2.6.1",
+    "@types/express": "^5.0.6",
+    "discord-api-types": "^0.38.47",
+    "discord.js": "^14.18.0",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
