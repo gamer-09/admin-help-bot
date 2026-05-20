@@ -35,6 +35,7 @@ export interface ConfigOverride {
 interface BotDatabase {
   users: Record<string, UserRecord>;
   config?: ConfigOverride;
+  welcomeChannel?: string;
 }
 
 function loadDB(): BotDatabase {
@@ -96,6 +97,16 @@ export function clearWarnings(userId: string): boolean {
   db.users[userId].warnings = 0;
   saveDB(db);
   return true;
+}
+
+export function getWelcomeChannel(): string | null {
+  return loadDB().welcomeChannel ?? null;
+}
+
+export function saveWelcomeChannel(channelId: string): void {
+  const db = loadDB();
+  db.welcomeChannel = channelId;
+  saveDB(db);
 }
 
 export function getEffectiveConfig(): typeof AUTOMOD_CONFIG {
