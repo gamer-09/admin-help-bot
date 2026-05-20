@@ -2,17 +2,56 @@ import { EmbedBuilder, GuildMember, type ColorResolvable } from "discord.js";
 import type { UserRecord } from "./database";
 
 export function welcomeEmbed(member: GuildMember): EmbedBuilder {
+  const guild = member.guild;
+  const serverIcon = guild.iconURL({ size: 256 }) ?? undefined;
+  const joinPosition = guild.memberCount;
+
+  const suffix =
+    joinPosition % 100 >= 11 && joinPosition % 100 <= 13
+      ? "th"
+      : joinPosition % 10 === 1
+      ? "st"
+      : joinPosition % 10 === 2
+      ? "nd"
+      : joinPosition % 10 === 3
+      ? "rd"
+      : "th";
+
   return new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(`👋 Welcome to ${member.guild.name}!`)
+    .setAuthor({
+      name: member.user.tag,
+      iconURL: member.user.displayAvatarURL({ size: 256 }),
+    })
+    .setTitle(`🎉 Welcome to ${guild.name}!`)
     .setDescription(
-      `Hey ${member}, we're so happy you're here!\n\n` +
-        `You're member **#${member.guild.memberCount}** of our community. 🎉\n\n` +
-        `📌 Please read the server rules and enjoy your stay!\n` +
-        `💬 Feel free to introduce yourself and jump right in.`
+      `Hey ${member}, we're so glad you found us! 👋\n\n` +
+        `You're our **${joinPosition.toLocaleString()}${suffix} member** — the community just got better. 🌟\n\n` +
+        `Here's how to get started:`
+    )
+    .addFields(
+      {
+        name: "📜 Read the Rules",
+        value: "Head to the rules channel and give them a quick read so you know what's what.",
+        inline: false,
+      },
+      {
+        name: "👋 Introduce Yourself",
+        value: "Drop a message in the introductions channel and say hi — we don't bite!",
+        inline: false,
+      },
+      {
+        name: "🛡️ Need Help?",
+        value: "Use `/ticket` to reach a moderator privately, or `/report` if you spot a problem.",
+        inline: false,
+      }
     )
     .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
-    .setFooter({ text: `ID: ${member.user.id}` })
+    .setImage(serverIcon ?? null)
+    .setFooter({
+      text: `${guild.name} • We're happy you're here!`,
+      iconURL: serverIcon,
+    })
     .setTimestamp();
 }
 
