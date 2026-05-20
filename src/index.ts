@@ -8,8 +8,10 @@ import {
   Routes,
   TextChannel,
   Partials,
+  MessageFlags,
   type GuildMember,
   type ChatInputCommandInteraction,
+  type InteractionReplyOptions,
 } from "discord.js";
 import { commands } from "./commands";
 import { welcomeEmbed } from "./embeds";
@@ -108,11 +110,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (handler) {
       await handler(interaction as ChatInputCommandInteraction);
     } else {
-      await interaction.reply({ content: "Unknown command.", ephemeral: true });
+      await interaction.reply({ content: "Unknown command.", flags: MessageFlags.Ephemeral });
     }
   } catch (err) {
     console.error(`Error handling /${commandName}:`, err);
-    const errMsg = { content: "An error occurred while running that command.", ephemeral: true };
+    const errMsg: InteractionReplyOptions = { content: "An error occurred while running that command.", flags: MessageFlags.Ephemeral };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(errMsg);
     } else {
