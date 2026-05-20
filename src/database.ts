@@ -2,7 +2,9 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { AUTOMOD_CONFIG } from "./config";
 
-const DB_PATH = join(process.cwd(), "bot-data.json");
+const DB_PATH = process.env["DATA_DIR"]
+  ? join(process.env["DATA_DIR"], "bot-data.json")
+  : join(process.cwd(), "bot-data.json");
 
 export interface Infraction {
   id: string;
