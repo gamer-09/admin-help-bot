@@ -1,0 +1,14 @@
+services:
+  - type: worker
+    name: admin-help-bot
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: DISCORD_WELCOME_CHANNEL
+        value: welcome
+    autoDeploy: true
