@@ -130,6 +130,22 @@ export const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("report")
+    .setDescription("Report a user to the moderation team")
+    .addUserOption((o) => o.setName("user").setDescription("User to report").setRequired(true))
+    .addStringOption((o) => o.setName("reason").setDescription("Reason for the report").setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName("ticket")
+    .setDescription("Open a private support ticket with the moderation team")
+    .addStringOption((o) => o.setName("subject").setDescription("Brief subject of your issue").setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName("appeal")
+    .setDescription("Appeal a warning or punishment to the moderation team")
+    .addStringOption((o) => o.setName("reason").setDescription("Explain why you believe the action should be reversed").setRequired(true)),
+
+  new SlashCommandBuilder()
     .setName("config")
     .setDescription("View or adjust automod configuration")
     .addSubcommand((sub) =>
