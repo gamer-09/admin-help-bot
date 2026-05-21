@@ -20,6 +20,7 @@ export interface UserRecord {
   username: string;
   warnings: number;
   infractions: Infraction[];
+  lastWarnedAt?: number; // unix ms — used to deduplicate across bot instances
 }
 
 export interface ConfigOverride {
@@ -168,6 +169,20 @@ export function getEffectiveConfig(): typeof AUTOMOD_CONFIG {
   };
 }
 
+
+export function getAutoModCooldown(userId: string): number {
+  return loadDB().users[userId]?.lastWarnedAt ?? 0;
+}
+
+export function setAutoModCooldown(userId: string, username: string): void {
+  const db = loadDB();
+  if (!db.users[userId]) {
+    db.users[userId] = { userId, username, warnings: 0, infractions: [], lastWarnedAt: Date.now() };
+  } else {
+    db.users[userId].lastWarnedAt = Date.now();
+  }
+  saveDB(db);
+}
 export function saveConfigOverride(patch: ConfigOverride): void {
   const db = loadDB();
   const existing = db.config ?? {};
