@@ -551,7 +551,8 @@ export async function handleHelp(interaction: ChatInputCommandInteraction): Prom
               "`/config badwords <add|remove> <word>` — Edit the bad word list\n" +
               "`/config spam [threshold] [window]` — Adjust spam detection\n" +
               "`/config caps <threshold>` — Set caps-spam % threshold\n" +
-              "`/config logchannel <channel>` — Set the mod-log channel",
+              "`/config logchannel <channel>` — Set the mod-log channel\n" +
+              "`/config linkchannel <add|remove> <channel>` — Allow or disallow links in a channel",
           }
         )
         .setFooter({ text: "Mod commands require Moderate Members or higher • Admin commands require Administrator" })
