@@ -32,6 +32,9 @@ const ACTION_COOLDOWN_MS = 8_000; // 8 s — covers the default 5 s spam window
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isImmune(member: GuildMember, immuneRoles: string[]): boolean {
+  // Guild owner always has full immunity — checked explicitly because
+  // partial GuildMember objects can have an empty permissions cache.
+  if (member.id === member.guild.ownerId) return true;
   if (member.permissions.has(PermissionFlagsBits.ManageMessages)) return true;
   return member.roles.cache.some((r) =>
     immuneRoles.includes(r.name) || immuneRoles.includes(r.id)
@@ -235,6 +238,8 @@ async function sendImmuneNudge(message: Message, violationType: string, reason: 
 
 export async function handleAutoMod(message: Message): Promise<void> {
   if (message.author.bot || !message.guild || !message.member) return;
+  // Server owner is fully exempt — the bot never acts on their messages.
+  if (message.member.id === message.guild.ownerId) return;
 
   const userId = message.author.id;
 
@@ -262,7 +267,27 @@ export async function handleAutoMod(message: Message): Promise<void> {
   try { await message.delete(); } catch { /* already deleted */ }
 
   if (isImmune(member, cfg.immuneRoles)) {
-    await sendImmuneNudge(message, violation.type, violation.reason);
+    // Staff are immune from penalties but their violating message is still
+    // deleted so they can see the bot is working. No DM is sent — staff
+    // testing the bot would be spammed otherwise. The log channel still records it.
+    const logChannel = await getLogChannel(message, cfg.logChannel);
+    if (logChannel) {
+      const { EmbedBuilder: EB } = await import("discord.js");
+      await logChannel.send({
+        embeds: [
+          new EB()
+            .setColor(0xfee75c)
+            .setTitle("👀 Staff Reminder (no action taken)")
+            .addFields(
+              { name: "Staff Member", value: `<@${member.id}> (${member.user.tag})`, inline: true },
+              { name: "Rule Triggered", value: violation.type, inline: true },
+              { name: "Detail", value: violation.reason },
+            )
+            .setFooter({ text: "Auto-Mod — immune member, message deleted only" })
+            .setTimestamp(),
+        ],
+      }).catch(() => {});
+    }
     return;
   }
 
