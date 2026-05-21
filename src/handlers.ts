@@ -615,21 +615,57 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
 
     if (action === "add") {
       if (currentWords.includes(word)) {
-        await interaction.editReply({ embeds: [errorEmbed(`\`${word}\` is already in the bad word list.`)] });
+        await interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xfee75c)
+              .setTitle("ℹ️ Already Filtered")
+              .setDescription(`\`${word}\` is already in the bad word list — no change was made.`)
+              .addFields({ name: "Total words filtered", value: `${currentWords.length}`, inline: true })
+              .setFooter({ text: "Use /config view to see the full word list" }),
+          ],
+        });
         return;
       }
       currentWords.push(word);
       saveConfigOverride({ badWords: { words: currentWords } });
-      await interaction.editReply({ embeds: [successEmbed(`Added \`${word}\` to the bad word list. (${currentWords.length} words total)`)] });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x57f287)
+            .setTitle("✅ Word Added")
+            .setDescription(`\`${word}\` has been added to the bad word list.`)
+            .addFields({ name: "Total words filtered", value: `${currentWords.length}`, inline: true })
+            .setFooter({ text: "Use /config view to see the full word list" }),
+        ],
+      });
     } else {
       const idx = currentWords.indexOf(word);
       if (idx === -1) {
-        await interaction.editReply({ embeds: [errorEmbed(`\`${word}\` was not found in the bad word list.`)] });
+        await interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xfee75c)
+              .setTitle("ℹ️ Word Not Found")
+              .setDescription(`\`${word}\` is not in the bad word list — no change was made.`)
+              .addFields({ name: "Total words filtered", value: `${currentWords.length}`, inline: true })
+              .setFooter({ text: "Use /config view to see the full word list" }),
+          ],
+        });
         return;
       }
       currentWords.splice(idx, 1);
       saveConfigOverride({ badWords: { words: currentWords } });
-      await interaction.editReply({ embeds: [successEmbed(`Removed \`${word}\` from the bad word list. (${currentWords.length} words remaining)`)] });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x57f287)
+            .setTitle("✅ Word Removed")
+            .setDescription(`\`${word}\` has been removed from the bad word list.`)
+            .addFields({ name: "Total words filtered", value: `${currentWords.length}`, inline: true })
+            .setFooter({ text: "Use /config view to see the full word list" }),
+        ],
+      });
     }
     return;
   }
