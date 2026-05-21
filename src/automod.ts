@@ -14,9 +14,20 @@ function trackSpam(userId: string, windowMs: number, maxMessages: number): boole
   const now = Date.now();
   const timestamps = (spamTracker.get(userId) ?? []).filter((t) => now - t < windowMs);
   timestamps.push(now);
+  if (timestamps.length > maxMessages) {
+    // Reset so the NEXT batch of messages is tracked independently.
+    // Without this, every message after the threshold also fires a warning.
+    spamTracker.set(userId, []);
+    return true;
+  }
   spamTracker.set(userId, timestamps);
-  return timestamps.length > maxMessages;
+  return false;
 }
+
+// ─── Per-user action cooldown ─────────────────────────────────────────────────
+// Prevents any rule from issuing more than one warning per user within the window.
+const actionCooldown = new Map<string, number>();
+const ACTION_COOLDOWN_MS = 8_000; // 8 s — covers the default 5 s spam window
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -225,11 +236,21 @@ async function sendImmuneNudge(message: Message, violationType: string, reason: 
 export async function handleAutoMod(message: Message): Promise<void> {
   if (message.author.bot || !message.guild || !message.member) return;
 
+  // Guard: skip if this user was already warned within the cooldown window.
+  // This prevents duplicate warnings when multiple messages arrive in quick
+  // succession before the first warning has been processed (e.g. spam bursts).
+  const lastAction = actionCooldown.get(message.author.id) ?? 0;
+  if (Date.now() - lastAction < ACTION_COOLDOWN_MS) return;
+
   const member = message.member;
   const cfg = getEffectiveConfig();
   const violation = detectViolation(message, cfg);
 
   if (!violation) return;
+
+  // Lock in the cooldown before any async work so concurrent message events
+  // for the same user see the lock and exit early.
+  actionCooldown.set(message.author.id, Date.now());
 
   try { await message.delete(); } catch { /* already deleted */ }
 
