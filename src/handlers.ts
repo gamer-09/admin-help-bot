@@ -612,6 +612,10 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
     const action = interaction.options.getString("action", true) as "add" | "remove";
     const word = interaction.options.getString("word", true).toLowerCase().trim();
     const currentWords = [...cfg.badWords.words];
+    const wordListDisplay = (words: string[]) => {
+      const display = words.map((w) => `\`${w}\``).join(", ");
+      return display.length > 900 ? display.slice(0, 900) + "…" : display || "*(none)*";
+    };
 
     if (action === "add") {
       if (currentWords.includes(word)) {
@@ -635,8 +639,11 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
             .setColor(0x57f287)
             .setTitle("✅ Word Added")
             .setDescription(`\`${word}\` has been added to the bad word list.`)
-            .addFields({ name: "Total words filtered", value: `${currentWords.length}`, inline: true })
-            .setFooter({ text: "Use /config view to see the full word list" }),
+            .addFields(
+              { name: "Total words filtered", value: `${currentWords.length}`, inline: true },
+              { name: "Current word list", value: wordListDisplay(currentWords), inline: false },
+            )
+            .setFooter({ text: "Run /config badwords again to add or remove more words" }),
         ],
       });
     } else {
@@ -662,8 +669,11 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
             .setColor(0x57f287)
             .setTitle("✅ Word Removed")
             .setDescription(`\`${word}\` has been removed from the bad word list.`)
-            .addFields({ name: "Total words filtered", value: `${currentWords.length}`, inline: true })
-            .setFooter({ text: "Use /config view to see the full word list" }),
+            .addFields(
+              { name: "Total words filtered", value: `${currentWords.length}`, inline: true },
+              { name: "Current word list", value: wordListDisplay(currentWords), inline: false },
+            )
+            .setFooter({ text: "Run /config badwords again to add or remove more words" }),
         ],
       });
     }
