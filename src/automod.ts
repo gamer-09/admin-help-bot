@@ -32,8 +32,8 @@ const ACTION_COOLDOWN_MS = 8_000; // 8 s — covers the default 5 s spam window
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isImmune(member: GuildMember, immuneRoles: string[]): boolean {
-  // Guild owner always has full immunity — checked explicitly because
-  // partial GuildMember objects can have an empty permissions cache.
+  // Check owner explicitly — partial GuildMember objects can have an
+  // empty permission cache, so never rely on permissions alone for the owner.
   if (member.id === member.guild.ownerId) return true;
   if (member.permissions.has(PermissionFlagsBits.ManageMessages)) return true;
   return member.roles.cache.some((r) =>
@@ -238,21 +238,6 @@ async function sendImmuneNudge(message: Message, violationType: string, reason: 
 
 export async function handleAutoMod(message: Message): Promise<void> {
   if (message.author.bot || !message.guild || !message.member) return;
-  // Server owner is fully exempt — the bot never acts on their messages.
-  if (message.member.id === message.guild.ownerId) return;
-
-  const userId = message.author.id;
-
-  // ── Layer 1: in-memory per-user cooldown (fast path, same process) ────────
-  const lastAction = actionCooldown.get(userId) ?? 0;
-  if (Date.now() - lastAction < ACTION_COOLDOWN_MS) return;
-
-  // ── Layer 2: message-ID dedup (bulletproof, handles every root cause) ─────
-  // Each Discord message has a unique ID.  Marking it processed BEFORE any
-  // await means no second invocation — whether from a duplicate listener,
-  // an overlapping deploy, or a gateway reconnect — can slip through.
-  if (isMessageProcessed(message.id)) return;
-  markMessageProcessed(message.id);            // ← claim BEFORE first await
 
   const member = message.member;
   const cfg = getEffectiveConfig();
@@ -260,34 +245,20 @@ export async function handleAutoMod(message: Message): Promise<void> {
 
   if (!violation) return;
 
-  // Update per-user cooldown so subsequent messages hit Layer 1 without a DB read.
-  actionCooldown.set(userId, Date.now());
-  setAutoModCooldown(userId, message.author.username);
+  // ── Atomic dedup via Discord API ──────────────────────────────────────────
+  // A Discord message can only be deleted once. Attempting deletion first
+  // means whichever handler call succeeds is the ONLY one that proceeds.
+  // Every other concurrent call (duplicate listener, overlapping deploy, etc.)
+  // will get an Unknown Message error here and exit — preventing duplicate DMs.
+  try {
+    await message.delete();
+  } catch {
+    return; // Another handler already processed this exact message — exit.
+  }
 
-  try { await message.delete(); } catch { /* already deleted */ }
-
+  // From here we are guaranteed to be the single handler for this message.
   if (isImmune(member, cfg.immuneRoles)) {
-    // Staff are immune from penalties but their violating message is still
-    // deleted so they can see the bot is working. No DM is sent — staff
-    // testing the bot would be spammed otherwise. The log channel still records it.
-    const logChannel = await getLogChannel(message, cfg.logChannel);
-    if (logChannel) {
-      const { EmbedBuilder: EB } = await import("discord.js");
-      await logChannel.send({
-        embeds: [
-          new EB()
-            .setColor(0xfee75c)
-            .setTitle("👀 Staff Reminder (no action taken)")
-            .addFields(
-              { name: "Staff Member", value: `<@${member.id}> (${member.user.tag})`, inline: true },
-              { name: "Rule Triggered", value: violation.type, inline: true },
-              { name: "Detail", value: violation.reason },
-            )
-            .setFooter({ text: "Auto-Mod — immune member, message deleted only" })
-            .setTimestamp(),
-        ],
-      }).catch(() => {});
-    }
+    await sendImmuneNudge(message, violation.type, violation.reason);
     return;
   }
 
