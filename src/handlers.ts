@@ -578,7 +578,8 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
             { name: "🔗 Invite Links", value: onOff(cfg.inviteLinks.enabled), inline: true },
             { name: "📣 Mass Mentions", value: `${onOff(cfg.massMention.enabled)} — max **${cfg.massMention.maxMentions}** pings`, inline: false },
             { name: "🔠 Caps Spam", value: `${onOff(cfg.capsSpam.enabled)} — **${cfg.capsSpam.maxCapsPercent}%** threshold`, inline: false },
-            { name: "🌐 External Links", value: onOff(cfg.externalLinks.enabled), inline: true },
+            { name: "🌐 External Links", value: `${onOff(cfg.externalLinks.enabled)} — **${cfg.externalLinks.allowedChannels.length}** allowed channel(s)`, inline: false },
+            { name: "🔓 Link-Allowed Channels", value: cfg.externalLinks.allowedChannels.length ? cfg.externalLinks.allowedChannels.map((c) => `<#${c}>`).join(", ") : "*(none)*", inline: false },
             { name: "📋 Log Channel", value: `\`${cfg.logChannel}\``, inline: false },
             { name: "📝 Bad Word List", value: cfg.badWords.words.map((w) => `\`${w}\``).join(", ") || "*(empty)*", inline: false },
           )
@@ -713,6 +714,67 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
     await interaction.editReply({
       embeds: [successEmbed(`Mod-log channel set to <#${channel.id}>.`)],
     });
+    return;
+  }
+
+  if (sub === "linkchannel") {
+    const action = interaction.options.getString("action", true) as "add" | "remove";
+    const channel = interaction.options.getChannel("channel", true);
+    const current = [...cfg.externalLinks.allowedChannels];
+    const channelDisplay = (ids: string[]) => ids.length ? ids.map((c) => `<#${c}>`).join(", ") : "*(none)*";
+
+    if (action === "add") {
+      if (current.includes(channel.id)) {
+        await interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xfee75c)
+              .setTitle("ℹ️ Already Allowed")
+              .setDescription(`<#${channel.id}> is already in the link-allowed list — no change was made.`)
+              .addFields({ name: "Allowed channels", value: channelDisplay(current), inline: false }),
+          ],
+        });
+        return;
+      }
+      current.push(channel.id);
+      saveConfigOverride({ externalLinks: { allowedChannels: current } });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x57f287)
+            .setTitle("✅ Link Channel Added")
+            .setDescription(`Links posted in <#${channel.id}> will **no longer be deleted** by auto-mod.`)
+            .addFields({ name: "Allowed channels", value: channelDisplay(current), inline: false })
+            .setFooter({ text: "Use /config linkchannel remove to undo this" }),
+        ],
+      });
+    } else {
+      const idx = current.indexOf(channel.id);
+      if (idx === -1) {
+        await interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xfee75c)
+              .setTitle("ℹ️ Channel Not Found")
+              .setDescription(`<#${channel.id}> is not in the link-allowed list — no change was made.`)
+              .addFields({ name: "Allowed channels", value: channelDisplay(current), inline: false }),
+          ],
+        });
+        return;
+      }
+      current.splice(idx, 1);
+      saveConfigOverride({ externalLinks: { allowedChannels: current } });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x57f287)
+            .setTitle("✅ Link Channel Removed")
+            .setDescription(`Links in <#${channel.id}> will now be **deleted by auto-mod** again.`)
+            .addFields({ name: "Allowed channels", value: channelDisplay(current), inline: false })
+            .setFooter({ text: "Use /config linkchannel add to allow links again" }),
+        ],
+      });
+    }
     return;
   }
 
