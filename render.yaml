@@ -4,6 +4,7 @@ services:
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: npm start
+    gracefulShutdownTimeoutInSeconds: 0
     healthCheckPath: /health
     disk:
       name: bot-data
