@@ -209,6 +209,18 @@ export const commands = [
           o.setName("channel").setDescription("The log channel").setRequired(true)
         )
     )
+    .addSubcommand((sub) =>
+      sub
+        .setName("linkchannel")
+        .setDescription("Add or remove a channel where links are allowed (auto-mod won't delete them)")
+        .addStringOption((o) =>
+          o.setName("action").setDescription("add or remove").setRequired(true)
+            .addChoices({ name: "add", value: "add" }, { name: "remove", value: "remove" })
+        )
+        .addChannelOption((o) =>
+          o.setName("channel").setDescription("The channel to allow or disallow links in").setRequired(true)
+        )
+    )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
