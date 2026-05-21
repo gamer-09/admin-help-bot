@@ -151,6 +151,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// ── Graceful shutdown ────────────────────────────────────────────────────────
+// When Render terminates the old instance it sends SIGTERM.
+// We destroy the Discord client immediately so the gateway connection closes
+// at once — stopping event delivery before the new instance is fully up.
+// This eliminates the overlap window where both instances receive the same
+// Discord events and send duplicate DMs.
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received — destroying Discord client and exiting.");
+  client.destroy();
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received — destroying Discord client and exiting.");
+  client.destroy();
+  process.exit(0);
+});
+
 const app = express();
 const PORT = process.env["PORT"] || 10000;
 
