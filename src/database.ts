@@ -37,6 +37,7 @@ interface BotDatabase {
   users: Record<string, UserRecord>;
   config?: ConfigOverride;
   welcomeChannel?: string;
+  processedMessages?: Record<string, number>; // messageId → timestamp (pruned after 60 s)
 }
 
 // ── In-memory cache ────────────────────────────────────────────────────────────
@@ -170,19 +171,45 @@ export function getEffectiveConfig(): typeof AUTOMOD_CONFIG {
 }
 
 
+// ── Message-ID dedup (primary guard against duplicate auto-mod actions) ────
+// Each Discord message has a unique snowflake ID.  Recording it the moment we
+// start processing means any second handler call — from an overlapping deploy,
+// a reconnect, or an accidentally-doubled listener — is dropped immediately.
+
+export function isMessageProcessed(messageId: string): boolean {
+  const db = loadDB();
+  const now = Date.now();
+  const pm = db.processedMessages ?? {};
+  let changed = false;
+  for (const id of Object.keys(pm)) {
+    if (now - pm[id] > 60_000) { delete pm[id]; changed = true; }
+  }
+  if (changed) { db.processedMessages = pm; saveDB(db); }
+  return !!pm[messageId];
+}
+
+export function markMessageProcessed(messageId: string): void {
+  const db = loadDB();
+  if (!db.processedMessages) db.processedMessages = {};
+  db.processedMessages[messageId] = Date.now();
+  saveDB(db);
+}
+
+// ── Per-user cooldown (secondary guard, stored for cross-instance safety) ───
 export function getAutoModCooldown(userId: string): number {
   return loadDB().users[userId]?.lastWarnedAt ?? 0;
 }
 
 export function setAutoModCooldown(userId: string, username: string): void {
-  const db = loadDB();
-  if (!db.users[userId]) {
-    db.users[userId] = { userId, username, warnings: 0, infractions: [], lastWarnedAt: Date.now() };
+  const db2 = loadDB();
+  if (!db2.users[userId]) {
+    db2.users[userId] = { userId, username, warnings: 0, infractions: [], lastWarnedAt: Date.now() };
   } else {
-    db.users[userId].lastWarnedAt = Date.now();
+    db2.users[userId].lastWarnedAt = Date.now();
   }
-  saveDB(db);
+  saveDB(db2);
 }
+
 export function saveConfigOverride(patch: ConfigOverride): void {
   const db = loadDB();
   const existing = db.config ?? {};
