@@ -3,6 +3,7 @@ import {
   GuildMember,
   TextChannel,
   PermissionFlagsBits,
+  PermissionsBitField,
   EmbedBuilder,
   ChannelType,
   MessageFlags,
@@ -463,99 +464,102 @@ export async function handleSetupRules(interaction: ChatInputCommandInteraction)
 }
 
 export async function handleHelp(interaction: ChatInputCommandInteraction): Promise<void> {
+  const member = interaction.member as GuildMember | null;
+  const isAdmin = member?.permissions instanceof PermissionsBitField
+    ? member.permissions.has(PermissionFlagsBits.Administrator)
+    : false;
+  const isMod = isAdmin || (
+    member?.permissions instanceof PermissionsBitField
+      ? member.permissions.has(PermissionFlagsBits.ModerateMembers)
+      : false
+  );
+
+  // ── Section: always available to everyone ─────────────────────────────────
+  const memberSection = {
+    name: "👥 Member Commands — available to everyone",
+    value:
+      "`/serverinfo` — View server stats (members, channels, roles)\n" +
+      "`/userinfo [user]` — View a user's profile and warning count\n" +
+      "`/report <user> <reason>` — Report a user to the mod team privately\n" +
+      "`/ticket <subject>` — Open a private support thread with staff\n" +
+      "`/appeal <reason>` — Appeal a warning or punishment\n" +
+      "`/help` — Show this command reference",
+  };
+
+  // ── Section: moderator commands ────────────────────────────────────────────
+  const modSection = {
+    name: isMod
+      ? "🛡️ Moderator Commands — you have access"
+      : "🛡️ Moderator Commands — requires Moderate Members",
+    value:
+      "`/warn <user> <reason>` — Warn a user (auto-escalates: warn → timeout → final warning → ban)\n" +
+      "`/timeout <user> <reason> [duration]` — Manually timeout a user\n" +
+      "`/untimeout <user>` — Remove a timeout\n" +
+      "`/kick <user> <reason>` — Kick a user\n" +
+      "`/ban <user> <reason> [delete_days]` — Permanently ban a user\n" +
+      "`/unban <userid> [reason]` — Unban a user by ID\n" +
+      "`/infractions <user>` — View a user's full warning history\n" +
+      "`/purge <amount> [user]` — Bulk delete up to 100 messages\n" +
+      "`/announce <message> [title] [channel]` — Post a formatted announcement\n" +
+      "`/slowmode <seconds> [channel]` — Set channel slowmode (0 to disable)\n" +
+      "`/lock [reason]` — Lock the current channel\n" +
+      "`/unlock` — Unlock the current channel\n" +
+      "`/role <add|remove> <user> <role>` — Add or remove a role from a user",
+  };
+
+  // ── Section: admin commands ────────────────────────────────────────────────
+  const adminSection = {
+    name: isAdmin
+      ? "👑 Admin Commands — you have access"
+      : "👑 Admin Commands — requires Administrator",
+    value:
+      "`/clearwarnings <user>` — Reset all warnings for a user\n" +
+      "`/setuprules [channel]` — Post the server rules embed into #rules\n" +
+      "`/setwelcome <channel>` — Set the channel for welcome messages\n" +
+      "`/testwelcome [user]` — Preview the welcome message\n" +
+      "`/config view` — Show all current automod settings\n" +
+      "`/config toggle <feature> <on|off>` — Enable or disable a feature\n" +
+      "`/config badwords <add|remove> <word>` — Edit the bad word filter\n" +
+      "`/config spam [threshold] [window]` — Adjust spam detection\n" +
+      "`/config caps <threshold>` — Set caps-spam % threshold\n" +
+      "`/config logchannel <channel>` — Set the mod-log channel\n" +
+      "`/config linkchannel <add|remove> <channel>` — Allow or disallow links in a channel",
+  };
+
+  // ── Section: always-on systems ─────────────────────────────────────────────
+  const autoModSection = {
+    name: "🤖 Auto-Mod — always active (no commands needed)",
+    value:
+      "› **Spam** — 5+ messages in 5 s → warning\n" +
+      "› **Hate speech / slurs** — instant delete + warn\n" +
+      "› **Invite links** — deleted outside allowed channels\n" +
+      "› **External links** — deleted outside link-allowed channels\n" +
+      "› **Mass mentions** — 5+ pings in one message\n" +
+      "› **Caps spam** — 70%+ uppercase messages\n" +
+      "All violations follow the warn → timeout → final warning → ban scale.",
+  };
+
+  const footerText = isAdmin
+    ? "You have full access to all commands"
+    : isMod
+      ? "You have access to Member + Moderator commands"
+      : "You have access to Member commands only";
+
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
     embeds: [
       new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("🤖 Admin Help Bot — Command Reference")
-        .setDescription("Full list of all available commands. Commands are restricted to members with the appropriate Discord permissions.")
-        .addFields(
-          {
-            name: "⚠️ Progressive Discipline",
-            value:
-              "`/warn <user> <reason>` — Issue a warning. Auto-escalates:\n" +
-              "› **1st** → Warning DM\n" +
-              "› **2nd** → 10-min timeout\n" +
-              "› **3rd** → Final warning DM\n" +
-              "› **4th** → Permanent ban",
-          },
-          {
-            name: "🔨 Moderation",
-            value:
-              "`/timeout <user> <reason> [duration]` — Manually timeout a user\n" +
-              "`/untimeout <user>` — Remove a timeout\n" +
-              "`/kick <user> <reason>` — Kick a user from the server\n" +
-              "`/ban <user> <reason> [delete_days]` — Permanently ban a user\n" +
-              "`/unban <userid> [reason]` — Unban a user by ID",
-          },
-          {
-            name: "📋 Infraction Records",
-            value:
-              "`/infractions <user>` — View a user's full warning history\n" +
-              "`/clearwarnings <user>` — Reset all warnings for a user",
-          },
-          {
-            name: "🛠️ Admin Tools",
-            value:
-              "`/purge <amount> [user]` — Bulk delete up to 100 messages\n" +
-              "`/announce <message> [title] [channel]` — Post a formatted announcement\n" +
-              "`/slowmode <seconds> [channel]` — Set channel slowmode (0 to disable)\n" +
-              "`/lock [reason]` — Lock current channel (members can't send)\n" +
-              "`/unlock` — Unlock current channel\n" +
-              "`/role <add|remove> <user> <role>` — Add or remove a role",
-          },
-          {
-            name: "📜 Server Setup",
-            value:
-              "`/setuprules [channel]` — Post the full server rules embed into #rules\n" +
-              "› Auto-finds your #rules channel by name\n" +
-              "› Posts 5 formatted embeds covering all 10 server rules\n" +
-              "`/setwelcome <channel>` — Set the channel where welcome messages are posted\n" +
-              "`/testwelcome [user]` — Preview the welcome message without anyone joining",
-          },
-          {
-            name: "ℹ️ Info",
-            value:
-              "`/serverinfo` — View server stats (members, channels, roles)\n" +
-              "`/userinfo [user]` — View a user's info and warning count\n" +
-              "`/help` — Show this command reference",
-          },
-          {
-            name: "🤖 Auto-Mod (always active)",
-            value:
-              "The bot watches every message 24/7 and acts automatically:\n" +
-              "› **Spam** — 5+ messages in 5 seconds\n" +
-              "› **Hate speech / slurs** — Instant delete + warn\n" +
-              "› **Invite links** — Deleted outside allowed channels\n" +
-              "› **Mass mentions** — 5+ pings in one message\n" +
-              "› **Caps spam** — 70%+ uppercase messages\n" +
-              "All violations are logged to #mod-logs and follow the same discipline scale.",
-          },
-          {
-            name: "🎉 Welcome System (always active)",
-            value: "A welcome embed is posted in #welcome whenever a new member joins.",
-          },
-          {
-            name: "🛡️ Community Safety (available to all members)",
-            value:
-              "`/report <user> <reason>` — Report a user to the mod team privately\n" +
-              "`/ticket <subject>` — Open a private support thread with staff\n" +
-              "`/appeal <reason>` — Appeal a warning or punishment",
-          },
-          {
-            name: "⚙️ Configuration (Admin only)",
-            value:
-              "`/config view` — Show all current automod settings\n" +
-              "`/config toggle <feature> <on|off>` — Enable or disable a feature\n" +
-              "`/config badwords <add|remove> <word>` — Edit the bad word list\n" +
-              "`/config spam [threshold] [window]` — Adjust spam detection\n" +
-              "`/config caps <threshold>` — Set caps-spam % threshold\n" +
-              "`/config logchannel <channel>` — Set the mod-log channel\n" +
-              "`/config linkchannel <add|remove> <channel>` — Allow or disallow links in a channel",
-          }
+        .setColor(isAdmin ? 0xed4245 : isMod ? 0xfee75c : 0x5865f2)
+        .setTitle("🤖 Lily Bot — Command Reference")
+        .setDescription(
+          isAdmin
+            ? "You have **Administrator** access — all commands are available to you."
+            : isMod
+              ? "You have **Moderator** access — member and moderator commands are available to you."
+              : "You have **Member** access. Commands marked with 🛡️ or 👑 require staff permissions."
         )
-        .setFooter({ text: "Mod commands require Moderate Members or higher • Admin commands require Administrator" })
+        .addFields(memberSection, modSection, adminSection, autoModSection)
+        .setFooter({ text: footerText })
         .setTimestamp(),
     ],
   });
