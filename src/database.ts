@@ -129,8 +129,9 @@ export function saveWelcomeChannel(channelId: string): void {
 
 export function getEffectiveConfig(): typeof AUTOMOD_CONFIG {
   const override = loadDB().config ?? {};
+  // Always return fresh copies of arrays so handlers can mutate them safely
   return {
-    immuneRoles: AUTOMOD_CONFIG.immuneRoles,
+    immuneRoles: [...AUTOMOD_CONFIG.immuneRoles],
     logChannel: override.logChannel ?? AUTOMOD_CONFIG.logChannel,
     spam: {
       enabled: override.spam?.enabled ?? AUTOMOD_CONFIG.spam.enabled,
@@ -139,11 +140,15 @@ export function getEffectiveConfig(): typeof AUTOMOD_CONFIG {
     },
     badWords: {
       enabled: override.badWords?.enabled ?? AUTOMOD_CONFIG.badWords.enabled,
-      words: override.badWords?.words ?? [...AUTOMOD_CONFIG.badWords.words],
+      words: override.badWords?.words != null
+        ? [...override.badWords.words]
+        : [...AUTOMOD_CONFIG.badWords.words],
     },
     inviteLinks: {
       enabled: override.inviteLinks?.enabled ?? AUTOMOD_CONFIG.inviteLinks.enabled,
-      allowedChannels: override.inviteLinks?.allowedChannels ?? AUTOMOD_CONFIG.inviteLinks.allowedChannels,
+      allowedChannels: override.inviteLinks?.allowedChannels
+        ? [...override.inviteLinks.allowedChannels]
+        : [...AUTOMOD_CONFIG.inviteLinks.allowedChannels],
     },
     massMention: {
       enabled: override.massMention?.enabled ?? AUTOMOD_CONFIG.massMention.enabled,
@@ -156,7 +161,9 @@ export function getEffectiveConfig(): typeof AUTOMOD_CONFIG {
     },
     externalLinks: {
       enabled: override.externalLinks?.enabled ?? AUTOMOD_CONFIG.externalLinks.enabled,
-      allowedChannels: override.externalLinks?.allowedChannels ?? AUTOMOD_CONFIG.externalLinks.allowedChannels,
+      allowedChannels: override.externalLinks?.allowedChannels
+        ? [...override.externalLinks.allowedChannels]
+        : [...AUTOMOD_CONFIG.externalLinks.allowedChannels],
     },
   };
 }
