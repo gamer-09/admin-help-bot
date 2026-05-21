@@ -5,7 +5,7 @@ import {
   EmbedBuilder,
   PermissionFlagsBits,
 } from "discord.js";
-import { addInfraction, getUserRecord, getEffectiveConfig } from "./database";
+import { addInfraction, getUserRecord, getEffectiveConfig, getAutoModCooldown, setAutoModCooldown } from "./database";
 
 // ─── Spam Tracker ─────────────────────────────────────────────────────────────
 const spamTracker = new Map<string, number[]>();
@@ -236,11 +236,18 @@ async function sendImmuneNudge(message: Message, violationType: string, reason: 
 export async function handleAutoMod(message: Message): Promise<void> {
   if (message.author.bot || !message.guild || !message.member) return;
 
-  // Guard: skip if this user was already warned within the cooldown window.
-  // This prevents duplicate warnings when multiple messages arrive in quick
-  // succession before the first warning has been processed (e.g. spam bursts).
-  const lastAction = actionCooldown.get(message.author.id) ?? 0;
+  const userId = message.author.id;
+
+  // ── Layer 1: in-memory cooldown (fast, same-process dedup) ────────────────
+  const lastAction = actionCooldown.get(userId) ?? 0;
   if (Date.now() - lastAction < ACTION_COOLDOWN_MS) return;
+
+  // ── Layer 2: DB cooldown (cross-instance dedup) ───────────────────────────
+  // When multiple bot deployments briefly overlap, each instance receives the
+  // same Discord event. The DB cooldown is shared state that prevents all
+  // instances from issuing a warning for the same user in quick succession.
+  const lastDb = getAutoModCooldown(userId);
+  if (Date.now() - lastDb < ACTION_COOLDOWN_MS) return;
 
   const member = message.member;
   const cfg = getEffectiveConfig();
@@ -248,9 +255,11 @@ export async function handleAutoMod(message: Message): Promise<void> {
 
   if (!violation) return;
 
-  // Lock in the cooldown before any async work so concurrent message events
-  // for the same user see the lock and exit early.
-  actionCooldown.set(message.author.id, Date.now());
+  // Claim the cooldown slot synchronously (before any await) so that
+  // concurrent events for the same user in the same process exit on Layer 1.
+  actionCooldown.set(userId, Date.now());
+  // Persist immediately so other instances see it before they do async work.
+  setAutoModCooldown(userId, message.author.username);
 
   try { await message.delete(); } catch { /* already deleted */ }
 
