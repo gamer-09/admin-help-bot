@@ -3,7 +3,6 @@ import {
   GuildMember,
   TextChannel,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from "discord.js";
 import { addInfraction, getUserRecord, getEffectiveConfig, getAutoModCooldown, setAutoModCooldown, isMessageProcessed, markMessageProcessed } from "./database";
 
@@ -31,16 +30,6 @@ const ACTION_COOLDOWN_MS = 8_000; // 8 s — covers the default 5 s spam window
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function isImmune(member: GuildMember, immuneRoles: string[]): boolean {
-  // Check owner explicitly — partial GuildMember objects can have an
-  // empty permission cache, so never rely on permissions alone for the owner.
-  if (member.id === member.guild.ownerId) return true;
-  if (member.permissions.has(PermissionFlagsBits.ManageMessages)) return true;
-  return member.roles.cache.some((r) =>
-    immuneRoles.includes(r.name) || immuneRoles.includes(r.id)
-  );
-}
-
 function containsBadWord(content: string, words: string[]): string | null {
   const lower = content.toLowerCase();
   for (const word of words) {
@@ -51,7 +40,7 @@ function containsBadWord(content: string, words: string[]): string | null {
 }
 
 const INVITE_REGEX = /discord(?:\.gg|\.com\/invite|app\.com\/invite)\/[a-zA-Z0-9-]+/i;
-const URL_REGEX = /https?:\/\/[^\s]+/gi;
+const URL_REGEX = /https?:\/\/[^\s]+/i;
 
 function containsInvite(content: string): boolean {
   return INVITE_REGEX.test(content);
@@ -211,29 +200,6 @@ function detectViolation(
   return null;
 }
 
-// ─── Nudge immune members who break a rule ────────────────────────────────────
-
-async function sendImmuneNudge(message: Message, violationType: string, reason: string): Promise<void> {
-  const guildName = message.guild!.name;
-  try {
-    await message.author.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xfee75c)
-          .setTitle("👀 Just a friendly reminder…")
-          .setDescription(
-            `Hey ${message.author}, you broke one of **${guildName}**'s rules — but since you're a staff member, the bot didn't take action.\n\n` +
-            `**Rule triggered:** ${violationType}\n` +
-            `**Detail:** ${reason}\n\n` +
-            `The community looks to you to set the example. Keep it clean! 😊`
-          )
-          .setFooter({ text: `${guildName} • Auto-Mod (immune reminder)` })
-          .setTimestamp(),
-      ],
-    });
-  } catch { /* DMs closed — silently ignore */ }
-}
-
 // ─── Main Auto-Mod Handler ────────────────────────────────────────────────────
 
 export async function handleAutoMod(message: Message): Promise<void> {
@@ -256,11 +222,8 @@ export async function handleAutoMod(message: Message): Promise<void> {
     return; // Another handler already processed this exact message — exit.
   }
 
-  // From here we are guaranteed to be the single handler for this message.
-  if (isImmune(member, cfg.immuneRoles)) {
-    await sendImmuneNudge(message, violation.type, violation.reason);
-    return;
-  }
-
+  // All members including staff and server owner are subject to auto-mod.
+  // Discord's permission hierarchy prevents the bot from timing out or banning
+  // members with higher permissions — those calls fail silently as intended.
   await autoWarn(message, member, violation.reason, violation.type, cfg.logChannel);
 }
